@@ -106,17 +106,11 @@ captive portal:
 These are the **defaults**; the management/portal ports can be changed in the UI
 (Settings → Controller) — if you do, adjust your firewall to match.
 
-Two things worth knowing when scoping the firewall:
-
-- **Device adoption needs layer-2 reachability.** The management ports can live
-  on any interface (e.g. restrict them to `tailscale0` for remote admin), but
-  the device ports must be reachable by the APs/switches on your LAN — a virtual
-  overlay like Tailscale won't carry L2 discovery.
-- **Reverse proxy for the UI:** terminate TLS in your proxy and `proxy_pass` to
-  the controller on loopback — `https://127.0.0.1:8043` (self-signed) or
-  `http://127.0.0.1:8088` — and simply don't open 8043/8088 externally.
-
-For example, to open the device ports on your LAN and reach the UI over Tailscale:
+When scoping the firewall, note that **device adoption needs layer-2
+reachability**: the management ports can live on any interface (e.g. restrict
+them to `tailscale0` for remote admin), but the device ports must be reachable
+by the APs/switches on your LAN — a virtual overlay like Tailscale won't carry
+L2 discovery. For example, device ports on the LAN with the UI over Tailscale:
 
 ```nix
 networking.firewall.interfaces = {
@@ -125,6 +119,22 @@ networking.firewall.interfaces = {
   tailscale0.allowedTCPPorts = [ 8088 8043 ];
 };
 ```
+
+### Reverse proxy (admin UI)
+
+If you front the admin UI with a reverse proxy, give it a **dedicated subdomain
+served at the root path** (`https://omada.example.com/`). A **subpath does not
+work** (`https://example.com/omada/`): the UI has no base-path/context setting,
+uses absolute asset paths, and injects a per-instance controller ID into its
+URLs, so assets, redirects, and WebSockets all escape the prefix.
+
+Proxy to the controller's **HTTPS port (8043)**, not the HTTP port — 8088
+redirects to HTTPS unconditionally (a Jetty connector-level redirect that
+ignores `X-Forwarded-Proto`), so proxying to it just loops. The controller's own
+cert is self-signed, so have the proxy skip backend cert verification.
+
+Route only the admin UI through the proxy — adopted APs/switches should reach
+the controller directly at its LAN address.
 
 ## Backups
 
