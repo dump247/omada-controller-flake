@@ -138,109 +138,110 @@ in
 
   config = mkIf cfg.enable {
     assertions = [
-        {
-          assertion = pkg.meta.platforms == [ "x86_64-linux" ] -> pkgs.stdenv.hostPlatform.system == "x86_64-linux";
-          message = "services.omada-controller: the vendor build is x86_64-linux only.";
-        }
+      {
+        assertion =
+          pkg.meta.platforms == [ "x86_64-linux" ] -> pkgs.stdenv.hostPlatform.system == "x86_64-linux";
+        message = "services.omada-controller: the vendor build is x86_64-linux only.";
+      }
+    ];
+
+    users.groups.${cfg.group} = { };
+    users.users.${cfg.user} = {
+      isSystemUser = true;
+      group = cfg.group;
+      home = cfg.stateDir;
+      description = "Omada SDN Controller";
+    };
+
+    systemd.services.omada-controller = {
+      description = "TP-Link Omada SDN Controller";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+
+      # The controller launches its own mongod (found on PATH / under
+      # OMADA_HOME/bin) via a shell, uses mongosh for version checks, and curl
+      # is a documented dependency.
+      path = [
+        pkg.jdk
+        pkg.mongodb
+        pkg.mongosh
+        pkgs.bash
+        pkgs.curl
+        pkgs.coreutils
       ];
 
-      users.groups.${cfg.group} = { };
-      users.users.${cfg.user} = {
-        isSystemUser = true;
-        group = cfg.group;
-        home = cfg.stateDir;
-        description = "Omada SDN Controller";
+      environment = {
+        # Keep any stray $HOME writes out of the backup target.
+        HOME = cacheDir;
+        # Headless-chromium profile dir for the PDF/report export feature.
+        XDG_CONFIG_HOME = "${cfg.stateDir}/data/chromium";
       };
 
-      systemd.services.omada-controller = {
-        description = "TP-Link Omada SDN Controller";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
+      serviceConfig = {
+        Type = "simple";
+        User = cfg.user;
+        Group = cfg.group;
 
-        # The controller launches its own mongod (found on PATH / under
-        # OMADA_HOME/bin) via a shell, uses mongosh for version checks, and curl
-        # is a documented dependency.
-        path = [
-          pkg.jdk
-          pkg.mongodb
-          pkg.mongosh
-          pkgs.bash
-          pkgs.curl
-          pkgs.coreutils
+        StateDirectory = stateDirName;
+
+        # Regenerable churn lives here, outside the state dir, so it's not in
+        # the backup: /var/log/omada-controller and /var/cache/omada-controller.
+        LogsDirectory = "omada-controller";
+        CacheDirectory = "omada-controller";
+        # Writable /run/omada-controller for jsvc's pidfile.
+        RuntimeDirectory = "omada-controller";
+
+        # '+' → run the assembly step as root so it can chown the tree.
+        ExecStartPre = "+${preStart}";
+
+        # Run jsvc in the foreground (-nodetach) so systemd owns the process
+        # directly. Classpath uses Java's own `lib/*` wildcard (expanded by
+        # the JVM, NOT the shell — systemd passes it literally, as required).
+        ExecStart = concatStringsSep " " [
+          "${pkg.jsvc}/bin/jsvc"
+          "-nodetach"
+          "-pidfile /run/omada-controller/omada.pid"
+          "-home ${pkg.jdk.home}"
+          "-cwd ${homeDir}/lib"
+          "-cp ${homeDir}/lib/*:${homeDir}/properties"
+          "-outfile ${logDir}/startup.log"
+          "-errfile ${logDir}/startup.log"
+          "-procname omada"
+          "-showversion"
+          javaOpts
+          "${pkg.mainClass} start"
         ];
 
-        environment = {
-          # Keep any stray $HOME writes out of the backup target.
-          HOME = cacheDir;
-          # Headless-chromium profile dir for the PDF/report export feature.
-          XDG_CONFIG_HOME = "${cfg.stateDir}/data/chromium";
-        };
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ProtectKernelTunables = true;
+        ProtectKernelModules = true;
+        ProtectControlGroups = true;
+        RestrictSUIDSGID = true;
+        NoNewPrivileges = true;
+        LockPersonality = true;
+        # AF_NETLINK: the JVM enumerates network interfaces through it.
+        # AF_UNIX: mongod's local socket. No MemoryDenyWriteExecute — it would
+        # kill the JIT.
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+          "AF_NETLINK"
+        ];
 
-        serviceConfig = {
-          Type = "simple";
-          User = cfg.user;
-          Group = cfg.group;
-
-          StateDirectory = stateDirName;
-
-          # Regenerable churn lives here, outside the state dir, so it's not in
-          # the backup: /var/log/omada-controller and /var/cache/omada-controller.
-          LogsDirectory = "omada-controller";
-          CacheDirectory = "omada-controller";
-          # Writable /run/omada-controller for jsvc's pidfile.
-          RuntimeDirectory = "omada-controller";
-
-          # '+' → run the assembly step as root so it can chown the tree.
-          ExecStartPre = "+${preStart}";
-
-          # Run jsvc in the foreground (-nodetach) so systemd owns the process
-          # directly. Classpath uses Java's own `lib/*` wildcard (expanded by
-          # the JVM, NOT the shell — systemd passes it literally, as required).
-          ExecStart = concatStringsSep " " [
-            "${pkg.jsvc}/bin/jsvc"
-            "-nodetach"
-            "-pidfile /run/omada-controller/omada.pid"
-            "-home ${pkg.jdk.home}"
-            "-cwd ${homeDir}/lib"
-            "-cp ${homeDir}/lib/*:${homeDir}/properties"
-            "-outfile ${logDir}/startup.log"
-            "-errfile ${logDir}/startup.log"
-            "-procname omada"
-            "-showversion"
-            javaOpts
-            "${pkg.mainClass} start"
-          ];
-
-          ProtectSystem = "strict";
-          ProtectHome = true;
-          PrivateTmp = true;
-          PrivateDevices = true;
-          ProtectKernelTunables = true;
-          ProtectKernelModules = true;
-          ProtectControlGroups = true;
-          RestrictSUIDSGID = true;
-          NoNewPrivileges = true;
-          LockPersonality = true;
-          # AF_NETLINK: the JVM enumerates network interfaces through it.
-          # AF_UNIX: mongod's local socket. No MemoryDenyWriteExecute — it would
-          # kill the JIT.
-          RestrictAddressFamilies = [
-            "AF_INET"
-            "AF_INET6"
-            "AF_UNIX"
-            "AF_NETLINK"
-          ];
-
-          Restart = "on-failure";
-          RestartSec = 10;
-          # First boot initialises MongoDB and migrates schemas — can be slow.
-          TimeoutStartSec = 900;
-          TimeoutStopSec = 120;
-          LimitNOFILE = 65535;
-          # Reap the mongod child on stop.
-          KillMode = "control-group";
-        };
+        Restart = "on-failure";
+        RestartSec = 10;
+        # First boot initialises MongoDB and migrates schemas — can be slow.
+        TimeoutStartSec = 900;
+        TimeoutStopSec = 120;
+        LimitNOFILE = 65535;
+        # Reap the mongod child on stop.
+        KillMode = "control-group";
       };
+    };
   };
 }
