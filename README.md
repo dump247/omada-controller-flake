@@ -288,6 +288,14 @@ guess: take it from the [TP-Link download page][omada], or from the ["New Versio
 Available" issues][tracker] on mbentley/docker-omada-controller, which quote the
 direct URL and, unlike the download page, still reach older releases.
 
+Tag the commit that lands the bump `v<omada_version>`, so consumers can pin a
+controller release with `?ref=v6.2.14.11`:
+
+```sh
+git tag -a v6.2.14.11 -m "Omada SDN Controller 6.2.14.11"
+git push origin v6.2.14.11
+```
+
 **Back up `stateDir` (or take an Omada Auto Backup) before a major upgrade**:
 Omada migrates its database in place on first boot.
 
