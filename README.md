@@ -278,6 +278,21 @@ the launcher on `PATH`. It may land eventually; until then this flake tracks the
 current release. Other prior art is personal repos (goertzenator's abandoned 4.x
 module, BBBSnowball's package-only `nixcfg`).
 
+---
+
+# License
+
+The flake itself — the Nix expressions, NixOS module, and tests in this repo —
+is [MIT licensed](LICENSE).
+
+That covers only the packaging. **The Omada SDN Controller it downloads is
+proprietary TP-Link software**, redistributed by nobody here: the package fetches
+the vendor tarball straight from `static.tp-link.com` at build time, and your use
+of it is governed by TP-Link's own license terms (`EULA.txt` in the tarball), not
+by the MIT license above. That is why the package is marked
+`lib.licenses.unfree` and needs `allowUnfree` — see [Unfree](#what-it-runs-and-what-that-means-for-you).
+MongoDB 8 (`mongodb-ce`, SSPL) is likewise unfree and separately licensed.
+
 [omada]: https://support.omadanetworks.com/us/product/omada-software-controller/
 [pr]: https://github.com/NixOS/nixpkgs/pull/345652
 [mdb]: https://www.mongodb.com/docs/manual/core/backups/
