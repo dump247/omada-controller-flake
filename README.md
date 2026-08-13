@@ -18,7 +18,7 @@ binary and targets `x86_64-linux` exclusively.
 
 ```nix
 {
-  inputs.omada.url = "github:youruser/omada-controller-flake";
+  inputs.omada.url = "github:dump247/omada-controller-flake";
 
   outputs = { nixpkgs, omada, ... }: {
     nixosConfigurations.router = nixpkgs.lib.nixosSystem {
