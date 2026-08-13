@@ -39,8 +39,9 @@ The web UI is then on `https://<host>:8043` (first launch runs a setup wizard).
 
 ## What it runs, and what that means for you
 
-- **Omada SDN Controller 6.2.14.11** — the official vendor build, fetched from
-  `static.tp-link.com` and run natively (no container).
+- **The Omada SDN Controller** — the official vendor build, fetched from
+  `static.tp-link.com` and run natively (no container). The pinned version is in
+  [`pkgs/omada-source.json`](pkgs/omada-source.json).
 - **OpenJDK 17** — the version TP-Link documents (the release `readme.txt` says
   it "supports Java 17"; the installer requires Java ≥ 17).
 - **MongoDB 8** (`mongodb-ce`) — the controller launches and manages its own
