@@ -149,24 +149,19 @@ needed;** regenerable data is kept out of it automatically. To put it on its own
 btrfs subvolume or ZFS dataset for cheap snapshots, mount that at
 `/var/lib/omada-controller` — the path itself is fixed.
 
-⚠️ **Don't file-copy `stateDir` while the service is running.** The embedded
-MongoDB writes its data files continuously; per the [MongoDB manual][mdb], *"since
-copying multiple files is not an atomic operation, you must stop all writes to
-the `mongod` before copying the files."* A live `rsync`/`restic`-of-files can
-capture a torn database that won't restore. Use one of:
+There are three ways to capture it. Any one of them is enough; only the first
+requires stopping the service.
 
-1. **Stop → copy → start** (always correct):
-   `systemctl stop omada-controller` → copy `stateDir` → `systemctl start …`.
-2. **Atomic filesystem snapshot** (btrfs/ZFS/LVM) of `stateDir`, *without*
-   stopping the service; MongoDB supports this when [journaling is enabled and
-   the journal is on the same volume as the data][snap], both true here. It must
-   be a real atomic snapshot, not a file copy.
-3. **Omada Auto Backup** — enable it in the UI (Settings → Maintenance); it
-   writes consistent `.cfg` exports under `stateDir` that ride along in a normal
-   backup, and importing one is a first-class Omada restore.
+### Copy the files (stop the service first)
 
-Restore = put `stateDir/` back (service stopped) and start it, or import an Auto
-Backup `.cfg` from the setup wizard. A safe stop-then-restic example:
+⚠️ **A file-by-file copy — `rsync`, `restic`, `cp`, `tar` — must run with the
+service stopped.** The embedded MongoDB writes its data files continuously, and
+per the [MongoDB manual][mdb], *"since copying multiple files is not an atomic
+operation, you must stop all writes to the `mongod` before copying the files."*
+Copying a live `stateDir` can capture a torn database that won't restore.
+
+So: `systemctl stop omada-controller` → copy `stateDir` → `systemctl start …`.
+The controller is down for the length of the copy. A restic example:
 
 ```nix
 { config, pkgs, ... }:
@@ -183,6 +178,37 @@ Backup `.cfg` from the setup wizard. A safe stop-then-restic example:
   };
 }
 ```
+
+### Snapshot the filesystem (no stop needed)
+
+An atomic btrfs/ZFS/LVM snapshot of `stateDir` is safe on a running controller:
+the snapshot *is* the atomic operation the warning above asks for. MongoDB
+supports this when [journaling is enabled and the journal is on the same volume
+as the data][snap], both true here.
+
+It has to be a real snapshot, not a file copy dressed up as one — and back up
+the snapshot afterwards, not the live directory.
+
+### Let Omada back itself up (no stop needed)
+
+Enable Auto Backup in the UI (Settings → Maintenance). The controller writes its
+own consistent `.cfg` exports under `stateDir`, so there's no external copy to
+get wrong, and importing one is a first-class Omada restore. Each `.cfg` is
+complete once written, so it survives even a live file copy of `stateDir`.
+
+This pairs well with either option above: it gives you a restore path that
+doesn't depend on the surrounding `stateDir` copy being sound.
+
+### Restoring
+
+The two kinds of backup restore differently:
+
+- **A `stateDir` copy or snapshot** — stop the service, put `stateDir/` back as
+  it was, start it again. The controller comes up as it was at backup time.
+- **An Auto Backup `.cfg`** — don't restore `stateDir`. Start the controller
+  with an empty one, and at the setup wizard choose to restore from a backup
+  file and upload the `.cfg`. The only thing you need out of your backup is that
+  one file, from `stateDir/data/autobackup/`.
 
 ## Trying it in a VM
 
