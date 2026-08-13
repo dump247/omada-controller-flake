@@ -56,9 +56,11 @@ nixpkgs.config.allowUnfreePredicate =
 ```
 
 **MongoDB 8 needs AVX.** Its prebuilt binaries require an AVX-capable CPU. On
-older hardware, swap to the source-built Mongo 7:
+older hardware, swap to the source-built Mongo 7. The overlay is what puts
+`omada-controller` in `pkgs`, so add both lines:
 
 ```nix
+nixpkgs.overlays = [ omada.overlays.default ];
 services.omada-controller.package =
   pkgs.omada-controller.override { mongodbPackage = pkgs.mongodb-7_0; };
 ```
