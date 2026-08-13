@@ -6,13 +6,7 @@
   # The vendor build and MongoDB 8 (mongodb-ce) are unfree.
   nixpkgs.config.allowUnfree = true;
 
-  services.omada-controller = {
-    enable = true;
-
-    # All mutable state lives here — the single directory to back up. Put it on
-    # its own btrfs subvolume or ZFS dataset if you want cheap snapshots.
-    stateDir = "/var/lib/omada-controller";
-  };
+  services.omada-controller.enable = true;
 
   # VM-only overrides so `nixos-rebuild build-vm` / `just vm` gives a throwaway
   # box you can actually poke at: the web UI is forwarded to the host and root

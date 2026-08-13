@@ -70,7 +70,7 @@ services.omada-controller.package =
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enable` | `false` | Run the controller. |
-| `stateDir` | `/var/lib/omada-controller` | Read-only. Where all mutable state lives; the one directory to back up. |
+| `stateDir` | `/var/lib/omada-controller` | Where all mutable state lives; the one directory to back up. The option is read-only — the path can't be moved, only mounted over. |
 | `user` / `group` | `omada` | Service account that owns the state. |
 | `package` | vendor build | Override to change the MongoDB engine, etc. |
 
