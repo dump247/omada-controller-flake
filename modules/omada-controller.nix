@@ -21,6 +21,7 @@ let
   share = "${pkg}/share/omada-controller";
 
   # stateDir holds only the backup-worthy state (data/ + properties/).
+  stateDirName = "omada-controller";
   state = cfg.stateDir;
 
   # Non-backed-up locations for everything regenerable.
@@ -114,13 +115,11 @@ in
 
     stateDir = mkOption {
       type = types.str;
-      default = "/var/lib/omada-controller";
+      default = "/var/lib/${stateDirName}";
+      readOnly = true;
       description = ''
-        The single directory holding all backup-worthy state: the MongoDB
-        database and config under `data/` and `properties/`. This is the only
-        path you need to back up (regenerable jars/logs/work live under
-        /var/cache and /var/log). Put it on its own btrfs subvolume or ZFS
-        dataset if you want cheap snapshots.
+        The directory to back up. Read-only: relocate it by mounting a subvolume
+        or dataset at this path.
       '';
     };
 
@@ -183,6 +182,8 @@ in
           User = cfg.user;
           Group = cfg.group;
 
+          StateDirectory = stateDirName;
+
           # Regenerable churn lives here, outside the state dir, so it's not in
           # the backup: /var/log/omada-controller and /var/cache/omada-controller.
           LogsDirectory = "omada-controller";
@@ -209,6 +210,26 @@ in
             "-showversion"
             javaOpts
             "${pkg.mainClass} start"
+          ];
+
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          PrivateTmp = true;
+          PrivateDevices = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectControlGroups = true;
+          RestrictSUIDSGID = true;
+          NoNewPrivileges = true;
+          LockPersonality = true;
+          # AF_NETLINK: the JVM enumerates network interfaces through it.
+          # AF_UNIX: mongod's local socket. No MemoryDenyWriteExecute — it would
+          # kill the JIT.
+          RestrictAddressFamilies = [
+            "AF_INET"
+            "AF_INET6"
+            "AF_UNIX"
+            "AF_NETLINK"
           ];
 
           Restart = "on-failure";

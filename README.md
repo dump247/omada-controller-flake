@@ -68,7 +68,7 @@ services.omada-controller.package =
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enable` | `false` | Run the controller. |
-| `stateDir` | `/var/lib/omada-controller` | Where all mutable state lives; the one directory to back up. |
+| `stateDir` | `/var/lib/omada-controller` | Read-only. Where all mutable state lives; the one directory to back up. |
 | `user` / `group` | `omada` | Service account that owns the state. |
 | `package` | vendor build | Override to change the MongoDB engine, etc. |
 
@@ -143,9 +143,11 @@ the controller directly at its LAN address.
 
 ## Backups
 
-Everything the controller persists lives under `stateDir` (default
-`/var/lib/omada-controller`). **Back up that one directory. No exclude list is
-needed;** regenerable data is kept out of it automatically.
+Everything the controller persists lives under `stateDir`
+(`/var/lib/omada-controller`). **Back up that one directory. No exclude list is
+needed;** regenerable data is kept out of it automatically. To put it on its own
+btrfs subvolume or ZFS dataset for cheap snapshots, mount that at
+`/var/lib/omada-controller` — the path itself is fixed.
 
 ⚠️ **Don't file-copy `stateDir` while the service is running.** The embedded
 MongoDB writes its data files continuously; per the [MongoDB manual][mdb], *"since
@@ -170,7 +172,7 @@ Backup `.cfg` from the setup wizard. A safe stop-then-restic example:
 { config, pkgs, ... }:
 {
   services.restic.backups.omada = {
-    # Reference the option rather than hardcoding; follows any stateDir change.
+    # Reference the option rather than hardcoding the path.
     paths = [ config.services.omada-controller.stateDir ];
     repository = "s3:s3.amazonaws.com/my-bucket/omada";
     passwordFile = "/run/secrets/omada-restic-password";
