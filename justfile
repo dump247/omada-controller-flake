@@ -1,7 +1,7 @@
 # Justfile for omada-controller-flake
 #
 # All recipes go through scripts/nix.sh, which uses a native `nix` if present
-# and otherwise runs nix inside podman (this machine has no native Nix daemon).
+# and otherwise runs nix inside podman, so a host without Nix still works.
 
 nix := "./scripts/nix.sh"
 system := `uname -m` + "-linux"

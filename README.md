@@ -290,9 +290,9 @@ database in place on first boot.
 
 ## Tooling
 
-This machine has no native Nix daemon, so all recipes go through
-[`scripts/nix.sh`](scripts/nix.sh), which uses a native `nix` when present and
-otherwise runs nix inside podman. Useful recipes:
+All recipes go through [`scripts/nix.sh`](scripts/nix.sh), so the flake can be
+developed from a host without Nix installed: it uses a native `nix` when present
+and otherwise runs nix inside podman. Useful recipes:
 
 ```sh
 just doctor        # show which backend (native nix / podman) is in use
