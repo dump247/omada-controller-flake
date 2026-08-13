@@ -7,7 +7,7 @@ gateways: you use it to adopt and configure those devices, monitor the network,
 and run guest/captive-portal networks from one place.
 
 **x86_64-linux only.** TP-Link publishes the controller solely as an x86_64
-Linux build — there is no official aarch64 release — so this flake packages that
+Linux build (there is no official aarch64 release), so this flake packages that
 binary and targets `x86_64-linux` exclusively.
 
 ---
@@ -68,13 +68,13 @@ services.omada-controller.package =
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `enable` | `false` | Run the controller. |
-| `stateDir` | `/var/lib/omada-controller` | Where all mutable state lives — the one directory to back up. |
+| `stateDir` | `/var/lib/omada-controller` | Where all mutable state lives; the one directory to back up. |
 | `user` / `group` | `omada` | Service account that owns the state. |
 | `package` | vendor build | Override to change the MongoDB engine, etc. |
 
 ## Ports & firewall
 
-The flake does **not** touch your firewall — open what you need yourself
+The flake does **not** touch your firewall; open what you need yourself
 (`networking.firewall`), since the right exposure is deployment-specific. These
 match TP-Link's [port list for Controller 5.0.15+][ports]; they fall into two
 groups:
@@ -101,7 +101,7 @@ captive portal:
 | 29817 | TCP | Device monitor |
 | 27001 | UDP | App (Omada app) discovery |
 | 29810 | UDP | Device discovery |
-| 19810 | UDP | OLT discovery — only if you run TP-Link GPON OLTs[^olt] |
+| 19810 | UDP | OLT discovery, only if you run TP-Link GPON OLTs[^olt] |
 
 [^olt]: 19810 is the factory discovery port on Omada OLTs, used when the
     controller adopts one on the same L2 segment. An OLT adopted across layer 3
@@ -109,12 +109,12 @@ captive portal:
     have no OLTs, skip this port.
 
 These are the **defaults**; the management/portal ports can be changed in the UI
-(Settings → Controller) — if you do, adjust your firewall to match.
+(Settings → Controller); if you do, adjust your firewall to match.
 
 When scoping the firewall, note that **device adoption needs layer-2
 reachability**: the management ports can live on any interface (e.g. restrict
 them to `tailscale0` for remote admin), but the device ports must be reachable
-by the APs/switches on your LAN — a virtual overlay like Tailscale won't carry
+by the APs/switches on your LAN; a virtual overlay like Tailscale won't carry
 L2 discovery. For example, device ports on the LAN with the UI over Tailscale:
 
 ```nix
@@ -133,18 +133,18 @@ work** (`https://example.com/omada/`): the UI has no base-path/context setting,
 uses absolute asset paths, and injects a per-instance controller ID into its
 URLs, so assets, redirects, and WebSockets all escape the prefix.
 
-Proxy to the controller's **HTTPS port (8043)**, not the HTTP port — 8088
+Proxy to the controller's **HTTPS port (8043)**, not the HTTP port: 8088
 redirects to HTTPS unconditionally (a Jetty connector-level redirect that
 ignores `X-Forwarded-Proto`), so proxying to it just loops. The controller's own
 cert is self-signed, so have the proxy skip backend cert verification.
 
-Route only the admin UI through the proxy — adopted APs/switches should reach
+Route only the admin UI through the proxy; adopted APs/switches should reach
 the controller directly at its LAN address.
 
 ## Backups
 
 Everything the controller persists lives under `stateDir` (default
-`/var/lib/omada-controller`). **Back up that one directory — no exclude list is
+`/var/lib/omada-controller`). **Back up that one directory. No exclude list is
 needed;** regenerable data is kept out of it automatically.
 
 ⚠️ **Don't file-copy `stateDir` while the service is running.** The embedded
@@ -156,7 +156,7 @@ capture a torn database that won't restore. Use one of:
 1. **Stop → copy → start** (always correct):
    `systemctl stop omada-controller` → copy `stateDir` → `systemctl start …`.
 2. **Atomic filesystem snapshot** (btrfs/ZFS/LVM) of `stateDir`, *without*
-   stopping the service — MongoDB supports this when [journaling is enabled and
+   stopping the service; MongoDB supports this when [journaling is enabled and
    the journal is on the same volume as the data][snap], both true here. It must
    be a real atomic snapshot, not a file copy.
 3. **Omada Auto Backup** — enable it in the UI (Settings → Maintenance); it
@@ -170,7 +170,7 @@ Backup `.cfg` from the setup wizard. A safe stop-then-restic example:
 { config, pkgs, ... }:
 {
   services.restic.backups.omada = {
-    # Reference the option rather than hardcoding — follows any stateDir change.
+    # Reference the option rather than hardcoding; follows any stateDir change.
     paths = [ config.services.omada-controller.stateDir ];
     repository = "s3:s3.amazonaws.com/my-bucket/omada";
     passwordFile = "/run/secrets/omada-restic-password";
@@ -207,7 +207,7 @@ Commons Daemon). A systemd unit runs `jsvc` directly in the foreground. Nothing
 reaches the system `PATH`: the package installs everything under
 `$out/share/omada-controller` and ships **nothing** in `$out/bin`, so the
 launchers never leak into user shells. The controller starts its own `mongod`
-(found under `OMADA_HOME/bin` or on `PATH`) — there is no separate mongod
+(found under `OMADA_HOME/bin` or on `PATH`); there is no separate mongod
 service.
 
 The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
@@ -216,14 +216,14 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
   the **canonical filesystem location of its JARs**, then resolves `../properties`
   and `../data` against it. So the JARs must physically sit under `OMADA_HOME`,
   and `OMADA_HOME/properties` must be writable (the controller rewrites ports
-  there). The JARs are ~307 MB — too big to want in every backup.
+  there). The JARs are ~307 MB, too big to want in every backup.
 - **So `OMADA_HOME` = `/var/cache/omada-controller/home`** (not backed up),
   assembled fresh each start by `ExecStartPre`. Its `lib/` is **hardlinked** from
-  the store — a hardlink has no separate canonical target (unlike a symlink,
+  the store: a hardlink has no separate canonical target (unlike a symlink,
   which canonicalizes back to the read-only store and makes the controller look
   for a writable `omada.properties` in `/nix/store` and fail). Hardlinks share
   the store's blocks (no extra disk) and the JARs keep the store's root ownership
-  (never `chown`ed — they share its inodes).
+  (never `chown`ed, since they share its inodes).
 - **`stateDir` holds only real state.** `OMADA_HOME/data` and
   `OMADA_HOME/properties` are symlinks back into `stateDir`, so the controller
   writes the database and config straight into the backup target; `logs`/`work`
@@ -233,12 +233,12 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
   escaping the backup.
 
 ```
-/var/lib/omada-controller/            <- stateDir — the backup target (state only)
+/var/lib/omada-controller/            <- stateDir: the backup target (state only)
 ├── data/db/                          <- MongoDB database (the important state)
 ├── data/keystore/  data/autobackup/  data/html/  ...
 └── properties/                       <- seeded once; controller rewrites ports here
 
-/var/cache/omada-controller/home/     <- OMADA_HOME — regenerable, NOT backed up
+/var/cache/omada-controller/home/     <- OMADA_HOME: regenerable, NOT backed up
 ├── lib/                              <- 307 MB of JARs, hardlinked from the store
 ├── bin/mongod, bin/mongosh           <- symlinks the controller expects
 ├── data       -> /var/lib/omada-controller/data          <- writes into the backup
@@ -258,7 +258,7 @@ just update-omada https://static.tp-link.com/.../Omada_SDN_Controller_vX.Y.Z_lin
 It derives the version from the filename, downloads the tarball to compute its
 hash, and rewrites the JSON. Canonical URLs come from the [TP-Link download
 page][omada] and the mbentley "new version" tracker issues. **Back up `stateDir`
-(or take an Omada Auto Backup) before a major upgrade** — Omada migrates its
+(or take an Omada Auto Backup) before a major upgrade**: Omada migrates its
 database in place on first boot.
 
 ## Tooling
@@ -270,7 +270,7 @@ otherwise runs nix inside podman. Useful recipes:
 ```sh
 just doctor        # show which backend (native nix / podman) is in use
 just check         # run the VM integration test
-just build-omada   # (nix build .#omada-controller) — build just the package
+just build-omada   # build just the package (nix build .#omada-controller)
 just update-omada  # bump the pinned Omada release
 ```
 
@@ -295,7 +295,7 @@ proprietary TP-Link software**, redistributed by nobody here: the package fetche
 the vendor tarball straight from `static.tp-link.com` at build time, and your use
 of it is governed by TP-Link's own license terms (`EULA.txt` in the tarball), not
 by the MIT license above. That is why the package is marked
-`lib.licenses.unfree` and needs `allowUnfree` — see [Unfree](#what-it-runs-and-what-that-means-for-you).
+`lib.licenses.unfree` and needs `allowUnfree` (see [Unfree](#what-it-runs-and-what-that-means-for-you)).
 MongoDB 8 (`mongodb-ce`, SSPL) is likewise unfree and separately licensed.
 
 [omada]: https://support.omadanetworks.com/us/product/omada-software-controller/
