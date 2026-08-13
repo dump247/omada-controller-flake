@@ -75,8 +75,9 @@ services.omada-controller.package =
 ## Ports & firewall
 
 The flake does **not** touch your firewall — open what you need yourself
-(`networking.firewall`), since the right exposure is deployment-specific. The
-ports fall into two groups:
+(`networking.firewall`), since the right exposure is deployment-specific. These
+match TP-Link's [port list for Controller 5.0.15+][ports]; they fall into two
+groups:
 
 **Management UI** — for admins reaching the controller:
 
@@ -98,10 +99,14 @@ captive portal:
 | 29815 | TCP | Transfer v2 |
 | 29816 | TCP | RTTY (remote access) |
 | 29817 | TCP | Device monitor |
-| 19810 | UDP | OLT discovery |
 | 27001 | UDP | App (Omada app) discovery |
-| 27002 | UDP | Discovery |
 | 29810 | UDP | Device discovery |
+| 19810 | UDP | OLT discovery — only if you run TP-Link GPON OLTs[^olt] |
+
+[^olt]: 19810 is the factory discovery port on Omada OLTs, used when the
+    controller adopts one on the same L2 segment. An OLT adopted across layer 3
+    via an inform URL uses 29810 instead unless the URL sets `dPort`. If you
+    have no OLTs, skip this port.
 
 These are the **defaults**; the management/portal ports can be changed in the UI
 (Settings → Controller) — if you do, adjust your firewall to match.
@@ -115,7 +120,7 @@ L2 discovery. For example, device ports on the LAN with the UI over Tailscale:
 ```nix
 networking.firewall.interfaces = {
   lan0.allowedTCPPorts = [ 8843 29811 29812 29813 29814 29815 29816 29817 ];
-  lan0.allowedUDPPorts = [ 19810 27001 27002 29810 ];
+  lan0.allowedUDPPorts = [ 27001 29810 ];
   tailscale0.allowedTCPPorts = [ 8088 8043 ];
 };
 ```
@@ -294,6 +299,7 @@ by the MIT license above. That is why the package is marked
 MongoDB 8 (`mongodb-ce`, SSPL) is likewise unfree and separately licensed.
 
 [omada]: https://support.omadanetworks.com/us/product/omada-software-controller/
+[ports]: https://support.omadanetworks.com/us/document/13090/
 [pr]: https://github.com/NixOS/nixpkgs/pull/345652
 [mdb]: https://www.mongodb.com/docs/manual/core/backups/
 [snap]: https://www.mongodb.com/docs/manual/tutorial/backup-with-filesystem-snapshots/
