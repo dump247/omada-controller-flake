@@ -213,16 +213,6 @@ The two kinds of backup restore differently:
   file and upload the `.cfg`. The only thing you need out of your backup is that
   one file, from `stateDir/data/autobackup/`.
 
-## Trying it in a VM
-
-```sh
-just vm        # boot the example VM interactively; open https://localhost:8043
-```
-
-A throwaway VM running the example config, with the UI forwarded to your
-`localhost`. It adapts to the host: native `nix` if present, otherwise inside
-podman (see [Developing](#developing-the-flake)).
-
 ---
 
 # Developing the flake
@@ -310,8 +300,9 @@ and otherwise runs nix inside podman. Useful recipes:
 
 ```sh
 just doctor        # show which backend (native nix / podman) is in use
-just check         # nix flake check — evaluate the flake and build every check
+just check         # nix flake check: evaluate the flake and build every check
 just test          # build only the VM integration test
+just vm            # boot the example VM; UI forwarded to https://localhost:8043
 just build-omada   # build just the package (nix build .#omada-controller)
 just update-omada  # bump the pinned Omada release
 ```
