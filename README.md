@@ -283,10 +283,13 @@ just update-omada https://static.tp-link.com/.../Omada_SDN_Controller_vX.Y.Z_lin
 ```
 
 It derives the version from the filename, downloads the tarball to compute its
-hash, and rewrites the JSON. Canonical URLs come from the [TP-Link download
-page][omada] and the mbentley "new version" tracker issues. **Back up `stateDir`
-(or take an Omada Auto Backup) before a major upgrade**: Omada migrates its
-database in place on first boot.
+hash, and rewrites the JSON. The tarball URL is a date-stamped path you can't
+guess: take it from the [TP-Link download page][omada], or from the ["New Version
+Available" issues][tracker] on mbentley/docker-omada-controller, which quote the
+direct URL and, unlike the download page, still reach older releases.
+
+**Back up `stateDir` (or take an Omada Auto Backup) before a major upgrade**:
+Omada migrates its database in place on first boot.
 
 ## Tooling
 
@@ -328,6 +331,7 @@ MongoDB 8 (`mongodb-ce`, SSPL) is likewise unfree and separately licensed.
 
 [omada]: https://support.omadanetworks.com/us/product/omada-software-controller/
 [ports]: https://support.omadanetworks.com/us/document/13090/
+[tracker]: https://github.com/mbentley/docker-omada-controller/issues?q=is%3Aissue+%22New+Version+Available%22
 [pr]: https://github.com/NixOS/nixpkgs/pull/345652
 [mdb]: https://www.mongodb.com/docs/manual/core/backups/
 [snap]: https://www.mongodb.com/docs/manual/tutorial/backup-with-filesystem-snapshots/

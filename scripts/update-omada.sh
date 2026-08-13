@@ -3,8 +3,8 @@
 # the tarball filename, prefetches its hash, and rewrites the JSON.
 #
 # Usage: scripts/update-omada.sh <tarball-url>
-#   The URL is the vendor Linux x64 tarball, e.g. from the TP-Link download page
-#   or the mbentley "new version" tracker issues:
+#   The URL is the vendor Linux x64 tarball, from the TP-Link download page or
+#   the "New Version Available" issues on mbentley/docker-omada-controller:
 #   https://static.tp-link.com/upload/software/YYYY/.../Omada_SDN_Controller_vX.Y.Z_linux_x64.tar.gz
 #
 # Uses a native nix if present, otherwise nix inside podman (like scripts/nix.sh).
