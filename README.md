@@ -152,6 +152,10 @@ needed;** regenerable data is kept out of it automatically. To put it on its own
 btrfs subvolume or ZFS dataset for cheap snapshots, mount that at
 `/var/lib/omada-controller` — the path itself is fixed.
 
+**The upgrade you most want a backup before is a controller version bump**:
+Omada migrates its database in place on first boot, so there is no going back to
+the old version without one.
+
 There are three ways to capture it. Any one of them is enough; only the first
 requires stopping the service.
 
@@ -288,9 +292,6 @@ controller release with `?ref=v6.2.14.11`:
 git tag -a v6.2.14.11 -m "Omada SDN Controller 6.2.14.11"
 git push origin v6.2.14.11
 ```
-
-**Back up `stateDir` (or take an Omada Auto Backup) before a major upgrade**:
-Omada migrates its database in place on first boot.
 
 ## Tooling
 
