@@ -213,13 +213,12 @@ The two kinds of backup restore differently:
 ## Trying it in a VM
 
 ```sh
-just check     # boot a VM and assert the controller serves the UI on :8043
 just vm        # boot the example VM interactively; open https://localhost:8043
 ```
 
-Both adapt to the host: native `nix` if present, otherwise inside podman (see
-[Developing](#developing-the-flake)). `just vm` gives a throwaway VM with the UI
-forwarded to your `localhost`.
+A throwaway VM running the example config, with the UI forwarded to your
+`localhost`. It adapts to the host: native `nix` if present, otherwise inside
+podman (see [Developing](#developing-the-flake)).
 
 ---
 
@@ -297,7 +296,8 @@ otherwise runs nix inside podman. Useful recipes:
 
 ```sh
 just doctor        # show which backend (native nix / podman) is in use
-just check         # run the VM integration test
+just check         # nix flake check — evaluate the flake and build every check
+just test          # build only the VM integration test
 just build-omada   # build just the package (nix build .#omada-controller)
 just update-omada  # bump the pinned Omada release
 ```
