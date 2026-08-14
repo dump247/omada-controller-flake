@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Pin pkgs/omada-source.json to a new Omada release: derives the version from
-# the tarball filename, prefetches its hash, and rewrites the JSON.
+# Add a new Omada release to pkgs/sources/: derives the version from the
+# tarball filename, prefetches its hash, and writes pkgs/sources/<version>.json.
+#
+# Existing files are left alone — the version-prefix attributes
+# (omada-controller_6_2 and friends) are derived from the whole directory, so a
+# new release adds a file rather than replacing one. Delete a file to retire
+# that version.
 #
 # Usage: scripts/update-omada.sh <tarball-url>
 #   The URL is the vendor Linux x64 tarball, from the TP-Link download page or
@@ -19,7 +24,7 @@ fi
 FLAKE_FEATURES="nix-command flakes"
 NIX_IMAGE="${NIX_IMAGE:-docker.io/nixos/nix:latest}"
 STORE_VOLUME="${OMADA_NIX_STORE_VOLUME:-omada-nix-store}"
-json="$(cd "$(dirname "$0")/.." && pwd)/pkgs/omada-source.json"
+sources="$(cd "$(dirname "$0")/.." && pwd)/pkgs/sources"
 
 # Version from the filename: Omada_SDN_Controller_v<version>_linux_x64.tar.gz
 fname="${url##*/}"
@@ -29,6 +34,11 @@ if [ "$ver" = "$fname" ] || [ -z "$ver" ]; then
   echo "error: could not parse a version from '$fname'" >&2
   echo "       expected Omada_SDN_Controller_v<version>_linux_x64.tar.gz" >&2
   exit 1
+fi
+
+json="$sources/$ver.json"
+if [ -e "$json" ]; then
+  echo "note: $ver is already packaged; re-hashing and rewriting $json" >&2
 fi
 
 in_nix() {
@@ -58,6 +68,7 @@ cat > "$json" <<EOF
 }
 EOF
 
-echo ">> pinned Omada $ver"
+echo ">> added Omada $ver"
 echo ">> wrote $json ($sri)"
+echo ">> now reachable as .#omada-controller_${ver//./_} (and the shorter prefixes it heads)"
 echo ">> verify:  just test    (boots a VM and checks the UI)"

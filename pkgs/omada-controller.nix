@@ -11,6 +11,9 @@
   # AVX (Mongo 8's prebuilt binaries require it):
   #   packages.omada-controller.override { mongodbPackage = pkgs.mongodb-7_0; }
   mongodbPackage ? mongodb-ce,
+  # One release: { version, url, hash } from pkgs/sources/. No default —
+  # pkgs/omada-versions.nix instantiates this once per file it finds there.
+  source,
 }:
 
 # TP-Link's official Omada SDN Controller, unpacked from the vendor tarball.
@@ -25,11 +28,8 @@
 # writable state directory. It launches its own `mongod` (found at
 # OMADA_HOME/bin/mongod or on PATH) — there is no separate mongod service.
 #
-# The version/url/hash are pinned in omada-source.json; bump them with
+# The version/url/hash come from pkgs/sources/; add a release with
 # `just update-omada <tarball-url>`.
-let
-  source = builtins.fromJSON (builtins.readFile ./omada-source.json);
-in
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "omada-controller";
   version = source.version;

@@ -40,8 +40,9 @@ The web UI is then on `https://<host>:8043` (first launch runs a setup wizard).
 ## What it runs, and what that means for you
 
 - **The Omada SDN Controller** — the official vendor build, fetched from
-  `static.tp-link.com` and run natively (no container). The pinned version is in
-  [`pkgs/omada-source.json`](pkgs/omada-source.json).
+  `static.tp-link.com` and run natively (no container). The versions it can
+  install are listed in [`pkgs/sources/`](pkgs/sources) — see [Choosing a
+  version](#choosing-a-version).
 - **OpenJDK 17** — the version TP-Link documents (the release `readme.txt` says
   it "supports Java 17"; the installer requires Java ≥ 17).
 - **MongoDB 8** (`mongodb-ce`) — the controller launches and manages its own
@@ -66,6 +67,31 @@ services.omada-controller.package =
   pkgs.omada-controller.override { mongodbPackage = pkgs.mongodb-7_0; };
 ```
 
+## Choosing a version
+
+By default you get the newest version this flake packages. To hold to a
+narrower version, pick a **version-prefix attribute**: each packaged release is
+exposed under every dotted prefix of its version, so 6.2.14.11 is reachable as
+all of
+
+```
+omada-controller            # the newest version, whatever it is
+omada-controller_6          # newest 6.x
+omada-controller_6_2        # newest 6.2.x
+omada-controller_6_2_14     # newest 6.2.14.x
+omada-controller_6_2_14_11  # exactly this version
+```
+
+Set the one you want as the package:
+
+```nix
+services.omada-controller.package = omada.packages.x86_64-linux.omada-controller_6_2;
+```
+
+A prefix reaches only versions this flake packages, and it follows TP-Link's
+releases going forward rather than reaching back: an attribute exists once some
+matching version has been packaged here.
+
 ## Options
 
 | Option | Default | Purpose |
@@ -73,7 +99,7 @@ services.omada-controller.package =
 | `enable` | `false` | Run the controller. |
 | `stateDir` | `/var/lib/omada-controller` | Where all mutable state lives; the one directory to back up. The option is read-only — the path can't be moved, only mounted over. |
 | `user` / `group` | `omada` | Service account that owns the state. |
-| `package` | vendor build | Override to change the MongoDB engine, etc. |
+| `package` | newest packaged version | Set a version-prefix attribute to hold a version, and/or `.override` to change the MongoDB engine. |
 
 ## Ports & firewall
 
@@ -271,27 +297,31 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 └── work       -> /var/cache/omada-controller/work
 ```
 
-## Updating the Omada version
+## Adding an Omada version
 
-The version/url/hash are pinned in `pkgs/omada-source.json`. Bump them with:
+Each version the flake can install is one `pkgs/sources/<version>.json` holding
+its version, URL, and hash. Add one with:
 
 ```sh
 just update-omada https://static.tp-link.com/.../Omada_SDN_Controller_vX.Y.Z_linux_x64.tar.gz
 ```
 
 It derives the version from the filename, downloads the tarball to compute its
-hash, and rewrites the JSON. The tarball URL is a date-stamped path you can't
-guess: take it from the [TP-Link download page][omada], or from the ["New Version
-Available" issues][tracker] on mbentley/docker-omada-controller, which quote the
-direct URL and, unlike the download page, still reach older releases.
+hash, and writes the JSON, leaving the existing files alone. The tarball URL is
+a date-stamped path you can't guess: take it from the [TP-Link download
+page][omada], or from the ["New Version Available" issues][tracker] on
+mbentley/docker-omada-controller, which quote the direct URL and, unlike the
+download page, still reach older releases.
 
-Tag the commit that lands the bump `v<omada_version>`, so consumers can pin a
-controller release with `?ref=v6.2.14.11`:
+Adding the file is the whole job:
+[`pkgs/omada-versions.nix`](pkgs/omada-versions.nix) derives the version-prefix
+attributes from whatever the directory holds. Deleting a file retires that
+version — any prefix attribute it was the newest match for falls back to the
+next one down, or disappears if it was the only match.
 
-```sh
-git tag -a v6.2.14.11 -m "Omada SDN Controller 6.2.14.11"
-git push origin v6.2.14.11
-```
+`nix flake check` boots a VM for the newest version only. Older ones are built
+by `nix build .#omada-controller_<version>` but not booted, so a consumer
+holding a prefix that lands on one is running something CI no longer exercises.
 
 ## Tooling
 
@@ -305,7 +335,7 @@ just check         # nix flake check: evaluate the flake and build every check
 just test          # build only the VM integration test
 just vm            # boot the example VM; UI forwarded to https://localhost:8043
 just build-omada   # build just the package (nix build .#omada-controller)
-just update-omada  # bump the pinned Omada release
+just update-omada  # add an Omada release to pkgs/sources/
 ```
 
 ## Why not nixpkgs?

@@ -41,7 +41,7 @@ eval:
 update:
     {{nix}} flake update
 
-# Pin the Omada controller to a new release (downloads the tarball to hash it).
+# Add an Omada controller release (downloads the tarball to hash it).
 #   just update-omada https://static.tp-link.com/.../Omada_SDN_Controller_vX_linux_x64.tar.gz
 update-omada url:
     ./scripts/update-omada.sh {{url}}

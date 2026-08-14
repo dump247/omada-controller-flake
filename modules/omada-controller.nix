@@ -104,12 +104,18 @@ in
 
     package = mkOption {
       type = types.package;
-      default = pkgs.callPackage ../pkgs/omada-controller.nix { };
-      defaultText = lib.literalExpression "pkgs.callPackage ../pkgs/omada-controller.nix { }";
+      default = (import ../pkgs/omada-versions.nix { inherit (pkgs) lib callPackage; }).omada-controller;
+      defaultText = lib.literalMD "the newest version the flake packages";
       description = ''
         The Omada controller package. Uses MongoDB 8 (`mongodb-ce`) and
         `jdk17_headless` by default — both unfree, so your host needs
         `nixpkgs.config.allowUnfree = true` (or an allow-list predicate).
+
+        The default follows the newest version the flake packages, which moves
+        whenever you `nix flake update`. To hold to a narrower version, set
+        this to a version-prefix attribute instead — e.g.
+        `omada.packages.''${system}.omada-controller_6_2`, which only ever
+        moves within 6.2.
       '';
     };
 

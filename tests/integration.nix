@@ -1,6 +1,7 @@
 {
   pkgs,
   module,
+  package,
   ...
 }:
 
@@ -12,7 +13,9 @@
 # first boot (Mongo init + schema setup) takes a few minutes — hence the large
 # VM and long timeouts.
 pkgs.testers.runNixOSTest {
-  name = "omada-controller";
+  # `checks` covers the newest version, but the package is an argument, so name
+  # the test after it — pointing this at an older version gives a distinct test.
+  name = "omada-controller-${package.version}";
 
   nodes.machine =
     { ... }:
@@ -31,7 +34,10 @@ pkgs.testers.runNixOSTest {
         qemu.options = [ "-cpu max" ];
       };
 
-      services.omada-controller.enable = true;
+      services.omada-controller = {
+        enable = true;
+        inherit package;
+      };
     };
 
   testScript = ''
