@@ -67,30 +67,34 @@ services.omada-controller.package =
   pkgs.omada-controller.override { mongodbPackage = pkgs.mongodb-7_0; };
 ```
 
+Setting `package` bypasses [`version`](#choosing-a-version); to hold a version
+too, override the matching attribute (`pkgs.omada-controller_6_2.override`).
+
 ## Choosing a version
 
 By default you get the newest version this flake packages. To hold to a
-narrower version, pick a **version-prefix attribute**: each packaged release is
-exposed under every dotted prefix of its version, so 6.2.14.11 is reachable as
-all of
-
-```
-omada-controller            # the newest version, whatever it is
-omada-controller_6          # newest 6.x
-omada-controller_6_2        # newest 6.2.x
-omada-controller_6_2_14     # newest 6.2.14.x
-omada-controller_6_2_14_11  # exactly this version
-```
-
-Set the one you want as the package:
+narrower version, set `version` to a **dotted prefix** — how many components
+you give is how narrowly you hold:
 
 ```nix
-services.omada-controller.package = omada.packages.x86_64-linux.omada-controller_6_2;
+services.omada-controller.version = "6.2";   # newest 6.2.x
+```
+
+```
+null        the newest version, whatever it is
+"6"         newest 6.x
+"6.2"       newest 6.2.x
+"6.2.14"    newest 6.2.14.x
+"6.2.14.11" exactly this version
 ```
 
 A prefix reaches only versions this flake packages, and it follows TP-Link's
-releases going forward rather than reaching back: an attribute exists once some
-matching version has been packaged here.
+releases going forward rather than reaching back: a version matches once it has
+been packaged here.
+
+The same releases are also flake outputs (`omada.packages.x86_64-linux.omada-controller_6_2`)
+and overlay attributes (`pkgs.omada-controller_6_2`), for building one outside
+the module.
 
 ## Options
 
@@ -99,7 +103,8 @@ matching version has been packaged here.
 | `enable` | `false` | Run the controller. |
 | `stateDir` | `/var/lib/omada-controller` | Where all mutable state lives; the one directory to back up. The option is read-only — the path can't be moved, only mounted over. |
 | `user` / `group` | `omada` | Service account that owns the state. |
-| `package` | newest packaged version | Set a version-prefix attribute to hold a version, and/or `.override` to change the MongoDB engine. |
+| `version` | `null` (newest packaged) | Dotted prefix of the version to hold to — see [Choosing a version](#choosing-a-version). |
+| `package` | newest release matching `version` | Build something else, e.g. `.override` to change the MongoDB engine. |
 
 ## Ports & firewall
 

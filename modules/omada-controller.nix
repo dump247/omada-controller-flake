@@ -15,7 +15,19 @@ let
     types
     escapeShellArg
     concatStringsSep
+    replaceStrings
     ;
+
+  # Built from the host's pkgs, so the host's unfree config (and any overlay it
+  # applies to the inputs) is what governs the build.
+  versions = import ../pkgs/omada-versions.nix { inherit (pkgs) lib callPackage; };
+
+  versionAttr = "omada-controller_" + replaceStrings [ "." ] [ "_" ] cfg.version;
+
+  # Dotted again, for the error when a version matches nothing.
+  packagedPrefixes = map (
+    name: replaceStrings [ "_" ] [ "." ] (lib.removePrefix "omada-controller_" name)
+  ) (lib.attrNames (removeAttrs versions [ "omada-controller" ]));
 
   pkg = cfg.package;
   share = "${pkg}/share/omada-controller";
@@ -102,20 +114,39 @@ in
   options.services.omada-controller = {
     enable = mkEnableOption "the TP-Link Omada SDN Controller (native, from the official vendor build)";
 
+    version = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "6.2";
+      description = ''
+        The version to hold to, written as a dotted prefix: `"6"` follows 6.x,
+        `"6.2"` follows 6.2.x, `"6.2.14.11"` pins exactly that release. `null`
+        follows the newest version this flake packages, which moves whenever
+        you `nix flake update`.
+
+        A prefix reaches only versions this flake packages, and it follows
+        TP-Link's releases going forward rather than reaching back.
+      '';
+    };
+
     package = mkOption {
       type = types.package;
-      default = (import ../pkgs/omada-versions.nix { inherit (pkgs) lib callPackage; }).omada-controller;
-      defaultText = lib.literalMD "the newest version the flake packages";
+      default =
+        if cfg.version == null then
+          versions.omada-controller
+        else
+          versions.${versionAttr} or (throw ''
+            services.omada-controller.version: no packaged release matches "${cfg.version}".
+            Packaged versions: ${concatStringsSep ", " packagedPrefixes}.
+          '');
+      defaultText = lib.literalMD "the newest release matching `version`";
       description = ''
         The Omada controller package. Uses MongoDB 8 (`mongodb-ce`) and
         `jdk17_headless` by default — both unfree, so your host needs
         `nixpkgs.config.allowUnfree = true` (or an allow-list predicate).
 
-        The default follows the newest version the flake packages, which moves
-        whenever you `nix flake update`. To hold to a narrower version, set
-        this to a version-prefix attribute instead — e.g.
-        `omada.packages.''${system}.omada-controller_6_2`, which only ever
-        moves within 6.2.
+        Set this to build something else, e.g. `.override` on a different
+        MongoDB engine.
       '';
     };
 
