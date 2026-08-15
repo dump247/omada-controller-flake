@@ -142,8 +142,9 @@ in
       defaultText = lib.literalMD "the newest release matching `version`";
       description = ''
         The Omada controller package. Uses MongoDB 8 (`mongodb-ce`) and
-        `jdk17_headless` by default — both unfree, so your host needs
-        `nixpkgs.config.allowUnfree = true` (or an allow-list predicate).
+        `jdk17_headless` by default. The vendor build and `mongodb-ce` are
+        unfree, so your host needs `nixpkgs.config.allowUnfree = true` (or an
+        allow-list predicate).
 
         Set this to build something else, e.g. `.override` on a different
         MongoDB engine.
