@@ -51,10 +51,11 @@ let
   # root (ExecStartPre '+').
   #
   # Backup contract: stateDir is a single, whole-directory backup target — no
-  # exclude list. It holds only real state: the MongoDB database and config under
-  # data/ and properties/. Everything regenerable lives outside it — the jars in
-  # ${homeDir} (hardlinked from the store: no extra disk, not backed up), logs in
-  # ${logDir}, and the servlet work dir in ${cacheDir}.
+  # exclude list. It holds the real state — the MongoDB database and config under
+  # data/ and properties/ — plus the ~1.6 MB of vendor assets re-copied below.
+  # The big regenerable things live outside it: the jars in ${homeDir}
+  # (hardlinked from the store: no extra disk, not backed up), logs in ${logDir},
+  # and the servlet work dir in ${cacheDir}.
   #
   # OMADA_HOME is NOT stateDir: the controller derives its home from the
   # *canonical* directory of its jars, so the jars must physically live under
@@ -73,7 +74,7 @@ let
     # --- stateDir (backed up): the database + config live directly here ---
     mkdir -p \
       "$state/data/db" "$state/data/keystore" "$state/data/pdf" \
-      "$state/data/chromium" "$state/data/autobackup" \
+      "$state/data/chromium" "$state/data/autobackup" "$state/data/static" \
       "$cache/work" "$logs"
 
     # properties: seed once, then leave alone (the controller rewrites ports here).
@@ -82,13 +83,24 @@ let
       cp "$share"/properties/* "$state/properties/"
     fi
 
-    # static assets: tiny (~1.6 MB), refreshed each start to track the version.
-    for d in html static cluster; do
+    # Vendor assets: tiny (~1.6 MB), refreshed each start to track the version.
+    # They sit in the backup target only because data/ is one symlink. Replaced
+    # wholesale so a downgrade doesn't leave a newer release's files behind.
+    for d in html cluster; do
       if [ -e "$share/data/$d" ]; then
         rm -rf "$state/data/$d"
         cp -r "$share/data/$d" "$state/data/$d"
       fi
     done
+
+    # static/ gets overwritten in place, NOT replaced: the controller downloads
+    # device icons for models the release ships no art for into
+    # data/static/theme/img, and it only asks TP-Link for templates newer than
+    # the version in its database. The database outlives a wipe, so a deleted
+    # icon is never re-fetched — it would be gone until the next release.
+    if [ -e "$share/data/static" ]; then
+      cp -r "$share"/data/static/. "$state/data/static/"
+    fi
 
     chmod -R u+w "$state/properties" "$state/data"
     chown -R ${cfg.user}:${cfg.group} "$state" "$logs" "$cache/work"

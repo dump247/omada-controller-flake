@@ -179,9 +179,15 @@ the controller directly at its LAN address.
 
 Everything the controller persists lives under `stateDir`
 (`/var/lib/omada-controller`). **Back up that one directory. No exclude list is
-needed;** regenerable data is kept out of it automatically. To put it on its own
-btrfs subvolume or ZFS dataset for cheap snapshots, mount that at
+needed;** the bulk of what's regenerable — the 307 MB of jars, the logs, the
+servlet work dir — is kept out of it automatically. To put it on its own btrfs
+subvolume or ZFS dataset for cheap snapshots, mount that at
 `/var/lib/omada-controller` — the path itself is fixed.
+
+It isn't *purely* state — a couple of MB of vendor assets ride along inside
+`data/`. They can't be split out, and they're far too small to be worth an
+exclude rule; [How the controller is wired
+up](#how-the-controller-is-wired-up) has the details.
 
 **The upgrade you most want a backup before is a controller version bump**:
 Omada migrates its database in place on first boot, so there is no going back to
@@ -279,18 +285,37 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
   for a writable `omada.properties` in `/nix/store` and fail). Hardlinks share
   the store's blocks (no extra disk) and the JARs keep the store's root ownership
   (never `chown`ed, since they share its inodes).
-- **`stateDir` holds only real state.** `OMADA_HOME/data` and
-  `OMADA_HOME/properties` are symlinks back into `stateDir`, so the controller
-  writes the database and config straight into the backup target; `logs`/`work`
-  symlink out to `/var/log` and `/var/cache` (systemd `LogsDirectory`/
-  `CacheDirectory`). The integration test asserts nothing lands at the
-  `OMADA_HOME` top level beyond the known entries, guarding against state
-  escaping the backup.
+- **`stateDir` holds the state, plus ~1.6 MB of vendor assets.**
+  `OMADA_HOME/data` and `OMADA_HOME/properties` are symlinks back into
+  `stateDir`, so the controller writes the database and config straight into the
+  backup target; `logs`/`work` symlink out to `/var/log` and `/var/cache`
+  (systemd `LogsDirectory`/`CacheDirectory`). The integration test asserts
+  nothing lands at the `OMADA_HOME` top level beyond the known entries, guarding
+  against state escaping the backup.
+- **`data/html`, `data/static` and `data/cluster` are the exception**, and they
+  can't be lifted out. They're ~1.6 MB of vendor assets — report images, device
+  icons, cluster config templates — that `ExecStartPre` re-copies from the
+  package each start so they track the installed release. Moving them elsewhere
+  would mean replacing the single `data/` symlink with per-subdirectory ones,
+  and then anything new the controller decides to write under `data/` lands
+  outside the backup with no test able to catch it.
+
+  `html` and `cluster` are deleted before the re-copy, so a downgrade can't
+  leave a newer release's files behind. **`static` is overwritten in place
+  instead**: the controller downloads device icons for models the release ships
+  no art for into `data/static/theme/img/`, and its sync only asks TP-Link for
+  templates newer than the version recorded in MongoDB. MongoDB outlives the
+  re-copy, so a deleted icon is never re-fetched — it would be gone until the
+  next release happened to bump the template version. The integration test
+  covers this. Hand-edits to the `data/cluster` templates *are* reverted each
+  start; the module runs a single node and doesn't wire up HSB or distributed
+  clustering.
 
 ```
-/var/lib/omada-controller/            <- stateDir: the backup target (state only)
+/var/lib/omada-controller/            <- stateDir: the backup target
 ├── data/db/                          <- MongoDB database (the important state)
-├── data/keystore/  data/autobackup/  data/html/  ...
+├── data/keystore/  data/autobackup/  <- TLS keystore, Omada's own .cfg exports
+├── data/html/ static/ cluster/       <- ~1.6 MB vendor assets, re-copied each start
 └── properties/                       <- seeded once; controller rewrites ports here
 
 /var/cache/omada-controller/home/     <- OMADA_HOME: regenerable, NOT backed up

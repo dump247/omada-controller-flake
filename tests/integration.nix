@@ -85,5 +85,20 @@ pkgs.testers.runNixOSTest {
     machine.succeed(
         "test -z \"$(ls /var/cache/omada-controller/home | grep -vxE 'bin|data|lib|logs|properties|work')\""
     )
+
+    # Last, because it restarts the service: device icons the controller
+    # downloads into data/static have to survive a restart. Its sync only
+    # fetches templates newer than the version in MongoDB, which a restart
+    # leaves untouched, so a wiped icon would never come back. A file of our own
+    # stands in for a downloaded one.
+    icon = "/var/lib/omada-controller/data/static/theme/img/topology/deviceicon/TEST-V1.png"
+    machine.succeed(f"touch {icon}")
+    machine.succeed("systemctl restart omada-controller")
+    machine.wait_for_unit("omada-controller.service")
+    machine.succeed(f"test -e {icon}")
+    # The vendor's own icons are still refreshed from the package alongside it.
+    machine.succeed(
+        "test -e /var/lib/omada-controller/data/static/theme/img/virtualDeviceIcon/EAP-Bridge.png"
+    )
   '';
 }
