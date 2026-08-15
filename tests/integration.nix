@@ -75,6 +75,9 @@ pkgs.testers.runNixOSTest {
     machine.succeed(
         'test "$(readlink /var/cache/omada-controller/home/data)" = /var/lib/omada-controller/data'
     )
+    machine.succeed(
+        'test "$(readlink /var/cache/omada-controller/home/properties)" = /var/lib/omada-controller/properties'
+    )
 
     # Backup-completeness guard: after a full startup the controller must write
     # nothing at the OMADA_HOME top level beyond these known entries — anything
