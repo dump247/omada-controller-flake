@@ -18,15 +18,17 @@
 
 # TP-Link's official Omada SDN Controller, unpacked from the vendor tarball.
 #
-# Deliberately installs everything under $out/share/omada-controller and
-# exposes NOTHING in $out/bin: the launcher (bin/control.sh) and jsvc must not
-# leak onto the system PATH. The NixOS module drives it directly via absolute
-# paths in a systemd unit.
+# Installs under $out/share/omada-controller with NOTHING in $out/bin: the
+# NixOS module drives the controller from a systemd unit via absolute paths, so
+# no launcher reaches the system PATH.
 #
-# The controller is a relocatable Java app: control.sh derives OMADA_HOME as
-# the parent of its own bin/ dir, so the module can point OMADA_HOME at a
-# writable state directory. It launches its own `mongod` (found at
-# OMADA_HOME/bin/mongod or on PATH) — there is no separate mongod service.
+# The vendor's bin/ isn't packaged at all — the unit spells out the invocation
+# control.sh would have made (see javaOpts below) and runs nixpkgs' jsvc, and
+# the module symlinks its own mongod/mongosh into the OMADA_HOME it assembles.
+# That assembly works because the app is relocatable: it derives OMADA_HOME from
+# the canonical directory of its jars, so pointing it at a writable tree outside
+# the store is enough. The controller launches that mongod itself — there is no
+# separate mongod service.
 #
 # The version/url/hash come from pkgs/sources/; add a release with
 # `just update-omada <tarball-url>`.
@@ -51,7 +53,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     inner="Omada_Network_Application_v${finalAttrs.version}_linux_x64"
     dst="$out/share/omada-controller"
     mkdir -p "$dst"
-    cp -r "$inner"/bin "$inner"/lib "$inner"/properties "$inner"/data "$dst"/
+    cp -r "$inner"/lib "$inner"/properties "$inner"/data "$dst"/
 
     runHook postInstall
   '';

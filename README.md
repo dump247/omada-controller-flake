@@ -257,13 +257,13 @@ flake.
 
 ## How the controller is wired up
 
-Omada ships as a relocatable Java app launched via the vendor's `jsvc` (Apache
-Commons Daemon). A systemd unit runs `jsvc` directly in the foreground. Nothing
-reaches the system `PATH`: the package installs everything under
-`$out/share/omada-controller` and ships **nothing** in `$out/bin`, so the
-launchers never leak into user shells. The controller starts its own `mongod`
-(found under `OMADA_HOME/bin` or on `PATH`); there is no separate mongod
-service.
+Omada ships as a relocatable Java app, normally launched by a bundled
+`control.sh` wrapping `jsvc` (Apache Commons Daemon). The package drops the
+vendor's `bin/` entirely and a systemd unit runs nixpkgs' `jsvc` directly in the
+foreground instead. Nothing reaches the system `PATH`: the package installs
+everything under `$out/share/omada-controller` and ships **nothing** in
+`$out/bin`. The controller starts its own `mongod` (found under
+`OMADA_HOME/bin` or on `PATH`); there is no separate mongod service.
 
 The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 
