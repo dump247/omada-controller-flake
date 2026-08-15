@@ -31,6 +31,7 @@
         }
       ];
     };
+    networking.firewall.allowedTCPPorts = [ 8043 8088 ];
     users.users.root.password = "";
     services.getty.autologinUser = "root";
   };
