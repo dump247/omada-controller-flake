@@ -63,6 +63,6 @@ vm:
 test:
     {{nix}} build .#checks.{{system}}.integration
 
-# Remove build artifacts.
+# Remove build artifacts, including native VM disk images.
 clean:
-    rm -f result result-*
+    rm -f result result-* *.qcow2
