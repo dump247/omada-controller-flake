@@ -26,15 +26,13 @@ NIX_IMAGE="${NIX_IMAGE:-docker.io/nixos/nix:latest}"
 STORE_VOLUME="${OMADA_NIX_STORE_VOLUME:-omada-nix-store}"
 sources="$(cd "$(dirname "$0")/.." && pwd)/pkgs/sources"
 
-# Version from the filename: Omada_SDN_Controller_v<version>_linux_x64.tar.gz
 fname="${url##*/}"
-ver="${fname#Omada_SDN_Controller_v}"
-ver="${ver%_linux_x64.tar.gz}"
-if [ "$ver" = "$fname" ] || [ -z "$ver" ]; then
+if [[ ! $fname =~ ^Omada_SDN_Controller_v([0-9]+(\.[0-9]+)+)_linux_x64\.tar\.gz$ ]]; then
   echo "error: could not parse a version from '$fname'" >&2
   echo "       expected Omada_SDN_Controller_v<version>_linux_x64.tar.gz" >&2
   exit 1
 fi
+ver="${BASH_REMATCH[1]}"
 
 json="$sources/$ver.json"
 if [ -e "$json" ]; then
