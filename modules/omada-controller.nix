@@ -52,8 +52,8 @@ let
   #
   # Backup contract: stateDir is a single, whole-directory backup target — no
   # exclude list. It holds the real state — the MongoDB database and config under
-  # data/ and properties/ — plus the ~1.6 MB of vendor assets re-copied below.
-  # The big regenerable things live outside it: the jars in ${homeDir}
+  # data/ and properties/ — plus the few megabytes of vendor assets re-copied
+  # below. The big regenerable things live outside it: the jars in ${homeDir}
   # (hardlinked from the store: no extra disk, not backed up), logs in ${logDir},
   # and the servlet work dir in ${cacheDir}.
   #
@@ -77,13 +77,15 @@ let
       "$state/data/chromium" "$state/data/autobackup" "$state/data/static" \
       "$cache/work" "$logs"
 
-    # properties: seed once, then leave alone (the controller rewrites ports here).
+    # properties: seed once so the controller has something to boot from. It
+    # then rewrites the file from the database on every start (the ports live in
+    # systemsetting.web_port_setting), so what's here isn't authoritative.
     if [ ! -e "$state/properties/omada.properties" ]; then
       mkdir -p "$state/properties"
       cp "$share"/properties/* "$state/properties/"
     fi
 
-    # Vendor assets: tiny (~1.6 MB), refreshed each start to track the version.
+    # Vendor assets: small, refreshed each start to track the version.
     # They sit in the backup target only because data/ is one symlink. Replaced
     # wholesale so a downgrade doesn't leave a newer release's files behind.
     for d in html cluster; do

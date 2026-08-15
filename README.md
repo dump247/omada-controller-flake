@@ -184,9 +184,9 @@ servlet work dir — is kept out of it automatically. To put it on its own btrfs
 subvolume or ZFS dataset for cheap snapshots, mount that at
 `/var/lib/omada-controller` — the path itself is fixed.
 
-It isn't *purely* state — a couple of MB of vendor assets ride along inside
-`data/`. They can't be split out, and they're far too small to be worth an
-exclude rule; [How the controller is wired
+It isn't *purely* state — several megabytes of vendor assets and device icons
+ride along inside `data/`. They can't be split out, and next to the database
+they're far too small to be worth an exclude rule; [How the controller is wired
 up](#how-the-controller-is-wired-up) has the details.
 
 **The upgrade you most want a backup before is a controller version bump**:
@@ -285,7 +285,7 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
   for a writable `omada.properties` in `/nix/store` and fail). Hardlinks share
   the store's blocks (no extra disk) and the JARs keep the store's root ownership
   (never `chown`ed, since they share its inodes).
-- **`stateDir` holds the state, plus ~1.6 MB of vendor assets.**
+- **`stateDir` holds the state, plus a few megabytes of vendor assets.**
   `OMADA_HOME/data` and `OMADA_HOME/properties` are symlinks back into
   `stateDir`, so the controller writes the database and config straight into the
   backup target; `logs`/`work` symlink out to `/var/log` and `/var/cache`
@@ -293,12 +293,12 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
   nothing lands at the `OMADA_HOME` top level beyond the known entries, guarding
   against state escaping the backup.
 - **`data/html`, `data/static` and `data/cluster` are the exception**, and they
-  can't be lifted out. They're ~1.6 MB of vendor assets — report images, device
-  icons, cluster config templates — that `ExecStartPre` re-copies from the
-  package each start so they track the installed release. Moving them elsewhere
-  would mean replacing the single `data/` symlink with per-subdirectory ones,
-  and then anything new the controller decides to write under `data/` lands
-  outside the backup with no test able to catch it.
+  can't be lifted out. They're vendor assets — report images, device icons,
+  cluster config templates — that `ExecStartPre` re-copies from the package each
+  start so they track the installed release. Moving them elsewhere would mean
+  replacing the single `data/` symlink with per-subdirectory ones, and then
+  anything new the controller decides to write under `data/` lands outside the
+  backup with no test able to catch it.
 
   `html` and `cluster` are deleted before the re-copy, so a downgrade can't
   leave a newer release's files behind. **`static` is overwritten in place
@@ -315,8 +315,8 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 /var/lib/omada-controller/            <- stateDir: the backup target
 ├── data/db/                          <- MongoDB database (the important state)
 ├── data/keystore/  data/autobackup/  <- TLS keystore, Omada's own .cfg exports
-├── data/html/ static/ cluster/       <- ~1.6 MB vendor assets, re-copied each start
-└── properties/                       <- seeded once; controller rewrites ports here
+├── data/html/ static/ cluster/       <- vendor assets + downloaded device icons
+└── properties/                       <- seeded once, then rewritten from the database
 
 /var/cache/omada-controller/home/     <- OMADA_HOME: regenerable, NOT backed up
 ├── lib/                              <- 307 MB of JARs, hardlinked from the store
