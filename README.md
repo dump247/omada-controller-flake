@@ -70,6 +70,13 @@ services.omada-controller.package =
 Setting `package` bypasses [`version`](#choosing-a-version); to hold a version
 too, override the matching attribute (`pkgs.omada-controller_6_2.override`).
 
+**MongoDB moves on its own.** `mongodb-ce` follows MongoDB's releases, so a
+`nix flake update` alone can change the engine under an existing database.
+TP-Link documents MongoDB 3.0-8.0 for this release, so the module won't
+evaluate with MongoDB 9 or newer, and won't start a `mongod` that would skip a
+release or step back over a database a later one wrote — see
+[Downgrades](#downgrades).
+
 ## Choosing a version
 
 By default you get the newest version this flake packages. To hold to a
@@ -179,8 +186,8 @@ the controller directly at its LAN address.
 
 Everything the controller persists lives under `stateDir`
 (`/var/lib/omada-controller`). **Back up that one directory. No exclude list is
-needed;** the bulk of what's regenerable — the 307 MB of jars, the logs, the
-servlet work dir — is kept out of it automatically. To put it on its own btrfs
+needed;** the bulk of what's regenerable — the jars, the logs, the servlet work
+dir — is kept out of it automatically. To put it on its own btrfs
 subvolume or ZFS dataset for cheap snapshots, mount that at
 `/var/lib/omada-controller` — the path itself is fixed.
 
@@ -191,7 +198,8 @@ up](#how-the-controller-is-wired-up) has the details.
 
 **The upgrade you most want a backup before is a controller version bump**:
 Omada migrates its database in place on first boot, so there is no going back to
-the old version without one.
+the old version without one — which is why the service refuses to start an older
+release over newer state at all (see [Downgrades](#downgrades)).
 
 There are three ways to capture it. Any one of them is enough; only the first
 requires stopping the service.
@@ -254,6 +262,19 @@ The two kinds of backup restore differently:
   file and upload the `.cfg`. The only thing you need out of your backup is that
   one file, from `stateDir/data/autobackup/`.
 
+### Downgrades
+
+There is no downgrade. Omada migrates its database in place on first start and
+the older release can't read the result; the MongoDB engine underneath behaves
+the same way. So the service refuses to start a release older than the one that
+last ran, rather than let a rollback hand a migrated database to something that
+can't read it. Nothing in `stateDir` is touched when it refuses.
+
+To go back, restore a `stateDir` backup or an Omada `.cfg` export taken on the
+older release. If you know the state predates the newer release — an upgrade
+interrupted before it migrated anything — delete `stateDir/.omada-version` to
+lift the refusal.
+
 ---
 
 # Developing the flake
@@ -277,7 +298,8 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
   the **canonical filesystem location of its JARs**, then resolves `../properties`
   and `../data` against it. So the JARs must physically sit under `OMADA_HOME`,
   and `OMADA_HOME/properties` must be writable (the controller rewrites ports
-  there). The JARs are ~307 MB, too big to want in every backup.
+  there). The JARs run to hundreds of megabytes, far too much to want in
+  every backup.
 - **So `OMADA_HOME` = `/var/cache/omada-controller/home`** (not backed up),
   assembled fresh each start by `ExecStartPre`. Its `lib/` is **hardlinked** from
   the store: a hardlink has no separate canonical target (unlike a symlink,
@@ -316,10 +338,11 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 ├── data/db/                          <- MongoDB database (the important state)
 ├── data/keystore/  data/autobackup/  <- TLS keystore, Omada's own .cfg exports
 ├── data/html/ static/ cluster/       <- vendor assets + downloaded device icons
+├── data/check-mongo/  .omada-version <- what last ran here; the downgrade guards
 └── properties/                       <- seeded once, then rewritten from the database
 
 /var/cache/omada-controller/home/     <- OMADA_HOME: regenerable, NOT backed up
-├── lib/                              <- 307 MB of JARs, hardlinked from the store
+├── lib/                              <- the JARs, hardlinked from the store
 ├── bin/mongod, bin/mongosh           <- symlinks the controller expects
 ├── data       -> /var/lib/omada-controller/data          <- writes into the backup
 ├── properties -> /var/lib/omada-controller/properties
@@ -333,7 +356,7 @@ Each version the flake can install is one `pkgs/sources/<version>.json` holding
 its version, URL, and hash. Add one with:
 
 ```sh
-just update-omada https://static.tp-link.com/.../Omada_SDN_Controller_vX.Y.Z_linux_x64.tar.gz
+just update-omada <tarball-url>
 ```
 
 It derives the version from the filename, downloads the tarball to compute its
@@ -349,7 +372,10 @@ attributes from whatever the directory holds. Deleting a file retires that
 version — any prefix attribute it was the newest match for falls back to the
 next one down, or disappears if it was the only match.
 
-`nix flake check` boots a VM for the newest version only. Older ones are built
+`nix flake check` boots two VMs: the newest version on an empty state dir, and
+an upgrade from the release before it — booted on the older one, switched to the
+newest, then checked that the guards refuse to go back. (The second only exists
+once `pkgs/sources/` holds two releases.) Every other packaged version is built
 by `nix build .#omada-controller_<version>` but not booted, so a consumer
 holding a prefix that lands on one is running something CI no longer exercises.
 
@@ -362,7 +388,7 @@ and otherwise runs nix inside podman. Useful recipes:
 ```sh
 just doctor        # show which backend (native nix / podman) is in use
 just check         # nix flake check: evaluate the flake and build every check
-just test          # build only the VM integration test
+just test          # run every VM test: one release, and the upgrade between two
 just vm            # boot the example VM; UI forwarded to https://localhost:8043
 just build-omada   # build just the package (nix build .#omada-controller)
 just update-omada  # add an Omada release to pkgs/sources/

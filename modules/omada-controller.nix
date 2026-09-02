@@ -39,8 +39,8 @@ let
   # Non-backed-up locations for everything regenerable.
   cacheDir = "/var/cache/omada-controller";
   logDir = "/var/log/omada-controller";
-  # OMADA_HOME: the assembled runtime tree. Holds the ~307 MB of jars (hardlinked
-  # from the store), so it lives here and NOT in the backup target.
+  # OMADA_HOME: the assembled runtime tree. Holds the hundreds of megabytes of
+  # jars (hardlinked from the store), so it lives here and NOT in the backup target.
   homeDir = "${cacheDir}/home";
 
   javaOpts = concatStringsSep " " (
@@ -59,7 +59,7 @@ let
   #
   # OMADA_HOME is NOT stateDir: the controller derives its home from the
   # *canonical* directory of its jars, so the jars must physically live under
-  # OMADA_HOME. To keep those ~307 MB out of the backup, OMADA_HOME is ${homeDir},
+  # OMADA_HOME. To keep those out of the backup, OMADA_HOME is ${homeDir},
   # and its data/ and properties/ are symlinks back into stateDir (the controller
   # writes through them) while logs/ and work/ point at ${logDir} / ${cacheDir}.
   preStart = pkgs.writeShellScript "omada-controller-pre-start" ''
@@ -71,11 +71,60 @@ let
     cache=${escapeShellArg cacheDir}
     logs=${escapeShellArg logDir}
 
+    controller_marker="$state/.omada-version"
+    mongo_marker="$state/data/check-mongo/LAST_MAIN_VERSION.info"
+
+    # --- version guards: refuse to run backwards over migrated state ---
+    # Omada migrates its database in place; mongod rejects a dbpath from a newer
+    # release. The vendor's equivalent checks are in install.sh/control.sh, which
+    # this package doesn't ship. Both run before anything writes to stateDir.
+
+    # 0 when $1 is the older version.
+    older_than() {
+      [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+    }
+
+    if [ -e "$controller_marker" ]; then
+      last_controller="$(cat "$controller_marker")"
+      if older_than ${escapeShellArg pkg.version} "$last_controller"; then
+        echo "omada-controller: refusing to start Omada ${pkg.version} over state last run by $last_controller." >&2
+        echo "  Omada has no downgrade path: the older release cannot read the migrated database." >&2
+        echo "  Restore a stateDir backup or an Omada .cfg export taken on ${pkg.version}, or, if" >&2
+        echo "  you know this state predates the newer release, delete $controller_marker." >&2
+        exit 1
+      fi
+    fi
+
+    # mongod reads a dbpath at most one major forward, and a major bump has to
+    # land on x.0. Stated as the rule rather than control.sh's VALID_VERSIONS
+    # list, which would stop checking on any release it hasn't heard of.
+    if [ -e "$mongo_marker" ]; then
+      now_mongo=${escapeShellArg (lib.versions.majorMinor pkg.mongodb.version)}
+      last_mongo="$(cut -d. -f1,2 < "$mongo_marker")"
+      now_major="$(echo "$now_mongo" | cut -d. -f1)"
+      now_minor="$(echo "$now_mongo" | cut -d. -f2)"
+      last_major="$(echo "$last_mongo" | cut -d. -f1)"
+      if older_than "$now_mongo" "$last_mongo" ||
+         [ "$((now_major - last_major))" -gt 1 ] ||
+         { [ "$now_major" -ne "$last_major" ] && [ "$now_minor" -ne 0 ]; }; then
+        echo "omada-controller: refusing to start MongoDB ${pkg.mongodb.version} over a database last run by $last_mongo." >&2
+        echo "  MongoDB upgrades one release at a time and never downgrades in place." >&2
+        echo "  Step through the intervening releases with services.omada-controller.package," >&2
+        echo "  e.g. .override { mongodbPackage = pkgs.mongodb-7_0; }, or restore a backup." >&2
+        exit 1
+      fi
+    fi
+
     # --- stateDir (backed up): the database + config live directly here ---
     mkdir -p \
       "$state/data/db" "$state/data/keystore" "$state/data/pdf" \
       "$state/data/chromium" "$state/data/autobackup" "$state/data/static" \
-      "$cache/work" "$logs"
+      "$state/data/check-mongo" "$cache/work" "$logs"
+
+    # In stateDir, so a restored backup carries the versions it was taken with.
+    # The MongoDB marker reuses the vendor's path and format.
+    printf '%s\n' ${escapeShellArg pkg.version} > "$controller_marker"
+    printf '%s\n' ${escapeShellArg pkg.mongodb.version} > "$mongo_marker"
 
     # properties: seed once so the controller has something to boot from. It
     # then rewrites the file from the database on every start (the ports live in
@@ -194,6 +243,18 @@ in
         assertion =
           pkg.meta.platforms == [ "x86_64-linux" ] -> pkgs.stdenv.hostPlatform.system == "x86_64-linux";
         message = "services.omada-controller: the vendor build is x86_64-linux only.";
+      }
+      {
+        # mongodb-ce follows MongoDB's releases, so `nix flake update` alone can
+        # move the engine under an existing database. TP-Link documents 3.0-8.0.
+        assertion = lib.versionOlder pkg.mongodb.version "9";
+        message = ''
+          services.omada-controller: MongoDB ${pkg.mongodb.version} is past what the
+          controller supports — TP-Link documents MongoDB 3.0-8.0 for this release.
+          Choose an engine it can run:
+            services.omada-controller.package =
+              pkgs.omada-controller.override { mongodbPackage = pkgs.mongodb-7_0; };
+        '';
       }
     ];
 

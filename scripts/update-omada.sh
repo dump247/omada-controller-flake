@@ -9,8 +9,8 @@
 #
 # Usage: scripts/update-omada.sh <tarball-url>
 #   The URL is the vendor Linux x64 tarball, from the TP-Link download page or
-#   the "New Version Available" issues on mbentley/docker-omada-controller:
-#   https://static.tp-link.com/upload/software/YYYY/.../Omada_SDN_Controller_vX.Y.Z_linux_x64.tar.gz
+#   the "New Version Available" issues on mbentley/docker-omada-controller.
+#   The accepted filenames are the regex below.
 #
 # Uses a native nix if present, otherwise nix inside podman (like scripts/nix.sh).
 set -euo pipefail
@@ -27,12 +27,13 @@ STORE_VOLUME="${OMADA_NIX_STORE_VOLUME:-omada-nix-store}"
 sources="$(cd "$(dirname "$0")/.." && pwd)/pkgs/sources"
 
 fname="${url##*/}"
-if [[ ! $fname =~ ^Omada_SDN_Controller_v([0-9]+(\.[0-9]+)+)_linux_x64\.tar\.gz$ ]]; then
+if [[ ! $fname =~ ^(Omada_SDN_Controller|Omada_Network_Application)_v([0-9]+(\.[0-9]+)+)_linux_x64(_[0-9]+)?\.tar\.gz$ ]]; then
   echo "error: could not parse a version from '$fname'" >&2
-  echo "       expected Omada_SDN_Controller_v<version>_linux_x64.tar.gz" >&2
+  echo "       expected Omada_SDN_Controller_v<version>_linux_x64.tar.gz, or" >&2
+  echo "       Omada_Network_Application_v<version>_linux_x64[_<timestamp>].tar.gz" >&2
   exit 1
 fi
-ver="${BASH_REMATCH[1]}"
+ver="${BASH_REMATCH[2]}"
 
 json="$sources/$ver.json"
 if [ -e "$json" ]; then
@@ -52,7 +53,7 @@ in_nix() {
   fi
 }
 
-echo ">> prefetching $url (downloads the ~291 MB tarball to hash it) ..." >&2
+echo ">> prefetching $url (downloads the whole tarball to hash it) ..." >&2
 # --unpack hash matches fetchzip stripRoot=false; the base32 is on stdout.
 b32="$(in_nix nix-prefetch-url --unpack --type sha256 "$url" | tail -n1)"
 sri="$(in_nix nix --extra-experimental-features "${FLAKE_FEATURES}" \

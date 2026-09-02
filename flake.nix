@@ -20,6 +20,12 @@
         };
       # One attribute per version prefix — see pkgs/omada-versions.nix.
       omadaFor = system: import ./pkgs/omada-versions.nix { inherit (pkgsFor system) lib callPackage; };
+      versionAttr = version: "omada-controller_" + lib.replaceStrings [ "." ] [ "_" ] version;
+
+      # The release before the newest, which the upgrade check upgrades from.
+      # null until pkgs/sources/ holds a second one.
+      packagedVersions = (import ./pkgs/omada-sources.nix { inherit lib; }).versions;
+      previousVersion = if lib.length packagedVersions > 1 then lib.elemAt packagedVersions 1 else null;
     in
     {
       # The reusable NixOS module. Import this into your configuration:
@@ -64,12 +70,27 @@
       # `nix flake check` boots the controller in a VM and asserts the UI comes
       # up. Heavy (downloads the vendor tarball + builds MongoDB closure), so it
       # covers the newest version only, not every version in pkgs/sources/.
-      checks = forAllSystems (system: {
-        integration = (pkgsFor system).callPackage ./tests/integration.nix {
-          module = self.nixosModules.omada-controller;
-          package = (omadaFor system).omada-controller;
-        };
-      });
+      #
+      # `upgrade` is a second VM for the state the newest version alone can't
+      # produce: the previous release boots first and the system is switched
+      # under it. It costs another tarball and another first start, and it only
+      # exists once pkgs/sources/ holds two releases.
+      checks = forAllSystems (
+        system:
+        {
+          integration = (pkgsFor system).callPackage ./tests/integration.nix {
+            module = self.nixosModules.omada-controller;
+            package = (omadaFor system).omada-controller;
+          };
+        }
+        // lib.optionalAttrs (previousVersion != null) {
+          upgrade = (pkgsFor system).callPackage ./tests/upgrade.nix {
+            module = self.nixosModules.omada-controller;
+            oldPackage = (omadaFor system).${versionAttr previousVersion};
+            newPackage = (omadaFor system).omada-controller;
+          };
+        }
+      );
 
       formatter = forAllSystems (system: (pkgsFor system).nixfmt-tree);
     };

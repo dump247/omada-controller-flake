@@ -9,9 +9,9 @@
 # the service and its embedded MongoDB to come up, and assert the management UI
 # answers on :8043. Also verifies the single-state-dir layout is assembled.
 #
-# Heavy: pulls the ~291 MB vendor tarball and the MongoDB closure, and Omada's
-# first boot (Mongo init + schema setup) takes a few minutes — hence the large
-# VM and long timeouts.
+# Heavy: pulls the vendor tarball and the MongoDB closure, and Omada's first
+# boot (Mongo init + schema setup) takes a few minutes — hence the large VM and
+# long timeouts.
 pkgs.testers.runNixOSTest {
   # `checks` covers the newest version, but the package is an argument, so name
   # the test after it — pointing this at an older version gives a distinct test.
@@ -61,8 +61,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("pgrep -u omada mongod")
 
     # --- storage layout / backup contract ---
-    # stateDir (the backup target) holds only real state — the ~307 MB of jars
-    # are NOT in it.
+    # stateDir (the backup target) holds only real state — the jars are NOT in it.
     machine.succeed("test -d /var/lib/omada-controller/data/db")
     machine.succeed("test ! -L /var/lib/omada-controller/data/db")
     machine.succeed("test -e /var/lib/omada-controller/properties/omada.properties")

@@ -42,7 +42,7 @@ update:
     {{nix}} flake update
 
 # Add an Omada controller release (downloads the tarball to hash it).
-#   just update-omada https://static.tp-link.com/.../Omada_SDN_Controller_vX_linux_x64.tar.gz
+#   just update-omada <vendor tarball URL>
 update-omada url:
     ./scripts/update-omada.sh {{url}}
 
@@ -59,9 +59,10 @@ build-vm:
 vm:
     ./scripts/vm.sh
 
-# Build just the VM integration test derivation.
+# Run every VM test: the newest release on an empty state dir, and the upgrade
+# from the release before it. The one command to verify a new release.
 test:
-    {{nix}} build .#checks.{{system}}.integration
+    {{nix}} build .#checks.{{system}}.integration .#checks.{{system}}.upgrade
 
 # Remove build artifacts, including native VM disk images.
 clean:

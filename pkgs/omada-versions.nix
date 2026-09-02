@@ -8,18 +8,7 @@
 # update-omada <url>`); the attributes follow from the versions found there.
 
 let
-  sourceDir = ./sources;
-
-  sources = lib.mapAttrs' (
-    file: _:
-    let
-      source = builtins.fromJSON (builtins.readFile (sourceDir + "/${file}"));
-    in
-    lib.nameValuePair source.version source
-  ) (lib.filterAttrs (name: _: lib.hasSuffix ".json" name) (builtins.readDir sourceDir));
-
-  # Newest first, so the head of a filtered list is that prefix's newest match.
-  versions = lib.sort (a: b: builtins.compareVersions a b > 0) (lib.attrNames sources);
+  inherit (import ./omada-sources.nix { inherit lib; }) sources versions;
 
   versionPrefixes = lib.unique (
     lib.concatMap (
