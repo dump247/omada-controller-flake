@@ -372,6 +372,10 @@ attributes from whatever the directory holds. Deleting a file retires that
 version — any prefix attribute it was the newest match for falls back to the
 next one down, or disappears if it was the only match.
 
+The flake sees only files that git tracks. Run `git add` on a new file before
+`just test` or `nix flake check`. Until then, both test the previous newest
+release and still pass.
+
 `nix flake check` boots two VMs: the newest version on an empty state dir, and
 an upgrade from the release before it — booted on the older one, switched to the
 newest, then checked that the guards refuse to go back. (The second only exists

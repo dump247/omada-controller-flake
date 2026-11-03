@@ -70,4 +70,9 @@ EOF
 echo ">> added Omada $ver"
 echo ">> wrote $json ($sri)"
 echo ">> now reachable as .#omada-controller_${ver//./_} (and the shorter prefixes it heads)"
+# The flake ignores untracked files, so testing before `git add` silently
+# tests the previous newest release.
+if ! git -C "$sources" ls-files --error-unmatch "$json" >/dev/null 2>&1; then
+  echo ">> git add pkgs/sources/$ver.json first: the flake ignores untracked files"
+fi
 echo ">> verify:  just test    (boots a VM and checks the UI)"
