@@ -379,12 +379,18 @@ just update-omada  # add an Omada release to pkgs/sources/
 
 ## Why not nixpkgs?
 
-There is no Omada controller in nixpkgs. The one open PR
-([NixOS/nixpkgs#345652][pr]) has been a draft since Oct 2024, still carries an
-unresolved merge conflict, targets an older Omada (5.15) + Mongo 7, and exposes
-the launcher on `PATH`. It may land eventually; until then this flake tracks the
-current release. Other prior art is personal repos (goertzenator's abandoned 4.x
-module, BBBSnowball's package-only `nixcfg`).
+nixpkgs packages the controller as `omada-software-controller`, with a
+`services.omada` module. This flake differs from it in these ways:
+
+| | This flake | nixpkgs |
+| --- | --- | --- |
+| Versions | Every release in `pkgs/sources/`, held by prefix | One |
+| Launcher | None, and nothing in `$out/bin` | `omada` and `tpeap` in `$out/bin` |
+| Backup target | `stateDir` excludes logs and the work directory | `dataDir` includes them |
+| MongoDB version jump | Refuses to start | Answers yes to `control.sh`'s prompt and starts |
+| Controller downgrade | Refuses to start | No check |
+| Sandboxing | systemd hardening options | None |
+| Firewall | Left to you | `openFirewallDevicePorts` and `openFirewallWebPorts` |
 
 ---
 
@@ -404,6 +410,5 @@ MongoDB 8 (`mongodb-ce`, SSPL) is likewise unfree and separately licensed.
 [omada]: https://support.omadanetworks.com/us/product/omada-software-controller/
 [ports]: https://support.omadanetworks.com/us/document/13090/
 [tracker]: https://github.com/mbentley/docker-omada-controller/issues?q=is%3Aissue+%22New+Version+Available%22
-[pr]: https://github.com/NixOS/nixpkgs/pull/345652
 [mdb]: https://www.mongodb.com/docs/manual/core/backups/
 [snap]: https://www.mongodb.com/docs/manual/tutorial/backup-with-filesystem-snapshots/
