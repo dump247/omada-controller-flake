@@ -57,6 +57,10 @@ pkgs.testers.runNixOSTest {
     machine.wait_until_succeeds(
         "curl -fsk https://localhost:8043 -o /dev/null", timeout=600
     )
+    # Every TCP port the README's firewall section lists.
+    for port in (8043, 8044, 8088, 8843, 29811, 29812, 29813, 29814, 29815, 29816, 29817):
+        machine.wait_for_open_port(port, timeout=60)
+
     # mongod should be running as a child of the controller, owned by omada.
     machine.succeed("pgrep -u omada mongod")
 

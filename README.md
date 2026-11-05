@@ -116,22 +116,15 @@ the module.
 ## Ports & firewall
 
 The flake does **not** touch your firewall; open what you need yourself
-(`networking.firewall`), since the right exposure is deployment-specific. These
-match TP-Link's [port list for Controller 5.0.15+][ports]; they fall into two
-groups:
-
-**Management UI** — for admins reaching the controller:
+(`networking.firewall`). These are TP-Link's [port list for Controller
+5.0.15+][ports], plus the firmware download ports from the release's
+`omada.properties`:
 
 | Port | Proto | Purpose |
 | --- | --- | --- |
 | 8088 | TCP | Management HTTP |
-| 8043 | TCP | Management HTTPS (web UI) |
-
-**Devices & guest clients** — for APs/switches to be adopted/managed and for the
-captive portal:
-
-| Port | Proto | Purpose |
-| --- | --- | --- |
+| 8043 | TCP | Management HTTPS (web UI), and firmware download for APs and gateways |
+| 8044 | TCP | Firmware download for Easy Managed switches (6.3 and newer) |
 | 8843 | TCP | Guest portal HTTPS |
 | 29811 | TCP | Manager v1 |
 | 29812 | TCP | Adopt v1 |
@@ -151,20 +144,6 @@ captive portal:
 
 These are the **defaults**; the management/portal ports can be changed in the UI
 (Settings → Controller); if you do, adjust your firewall to match.
-
-When scoping the firewall, note that **device adoption needs layer-2
-reachability**: the management ports can live on any interface (e.g. restrict
-them to `tailscale0` for remote admin), but the device ports must be reachable
-by the APs/switches on your LAN; a virtual overlay like Tailscale won't carry
-L2 discovery. For example, device ports on the LAN with the UI over Tailscale:
-
-```nix
-networking.firewall.interfaces = {
-  lan0.allowedTCPPorts = [ 8843 29811 29812 29813 29814 29815 29816 29817 ];
-  lan0.allowedUDPPorts = [ 27001 29810 ];
-  tailscale0.allowedTCPPorts = [ 8088 8043 ];
-};
-```
 
 ### Reverse proxy (admin UI)
 
