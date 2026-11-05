@@ -166,7 +166,6 @@ let
     mkdir -p "$home/lib" "$home/bin"
     cp -al "$share"/lib/. "$home/lib/" 2>/dev/null || cp -a "$share"/lib/. "$home/lib/"
     ln -s ${pkg.mongodb}/bin/mongod  "$home/bin/mongod"
-    ln -s ${pkg.mongosh}/bin/mongosh "$home/bin/mongosh"
     ln -sfnT "$state/properties" "$home/properties"
     ln -sfnT "$state/data"       "$home/data"
     ln -sfnT "$logs"             "$home/logs"
@@ -280,7 +279,6 @@ in
       path = [
         pkg.jdk
         pkg.mongodb
-        pkg.mongosh
         pkgs.bash
         pkgs.curl
         pkgs.coreutils

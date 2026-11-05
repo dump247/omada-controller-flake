@@ -322,7 +322,7 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 
 /var/cache/omada-controller/home/     <- OMADA_HOME: regenerable, NOT backed up
 ├── lib/                              <- the JARs, hardlinked from the store
-├── bin/mongod, bin/mongosh           <- symlinks the controller expects
+├── bin/mongod                        <- symlink the controller expects
 ├── data       -> /var/lib/omada-controller/data          <- writes into the backup
 ├── properties -> /var/lib/omada-controller/properties
 ├── logs       -> /var/log/omada-controller

@@ -4,7 +4,6 @@
   fetchzip,
   jdk17_headless,
   mongodb-ce,
-  mongosh,
   jsvc,
   # MongoDB engine the controller launches. Defaults to Mongo 8 (matches
   # TP-Link's own v6 direction). Override with `mongodb-7_0` for CPUs without
@@ -24,7 +23,7 @@
 #
 # The vendor's bin/ isn't packaged at all — the unit spells out the invocation
 # control.sh would have made (see javaOpts below) and runs nixpkgs' jsvc, and
-# the module symlinks its own mongod/mongosh into the OMADA_HOME it assembles.
+# the module symlinks its own mongod into the OMADA_HOME it assembles.
 # That assembly works because the app is relocatable: it derives OMADA_HOME from
 # the canonical directory of its jars, so pointing it at a writable tree outside
 # the store is enough. The controller launches that mongod itself — there is no
@@ -62,7 +61,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   passthru = {
     jdk = jdk17_headless;
     mongodb = mongodbPackage;
-    inherit mongosh jsvc;
+    inherit jsvc;
     mainClass = "com.tplink.smb.omada.starter.OmadaLinuxMain";
     # JAVA_OPTS as set by the vendor's control.sh (minus paths the module fills).
     javaOpts = [
