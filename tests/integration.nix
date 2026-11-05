@@ -103,5 +103,8 @@ pkgs.testers.runNixOSTest {
     machine.succeed(
         "test -e /var/lib/omada-controller/data/static/theme/img/virtualDeviceIcon/EAP-Bridge.png"
     )
+
+    # Runs after two starts, so the controller has run ps and arch by now.
+    machine.fail("grep 'Cannot run program' /var/log/omada-controller/server.log")
   '';
 }

@@ -172,6 +172,9 @@ let
     ln -sfnT "$logs"             "$home/logs"
     ln -sfnT "$cache/work"       "$home/work"
   '';
+
+  # coreutils doesn't install this command.
+  archCommand = pkgs.writeShellScriptBin "arch" "exec ${pkgs.coreutils}/bin/uname -m";
 in
 {
   options.services.omada-controller = {
@@ -272,9 +275,8 @@ in
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
 
-      # The controller launches its own mongod (found on PATH / under
-      # OMADA_HOME/bin) via a shell, uses mongosh for version checks, and curl
-      # is a documented dependency.
+      # The controller starts mongod through a shell, runs ps every 10 seconds to
+      # check it is alive, and runs arch at startup. curl is a documented dependency.
       path = [
         pkg.jdk
         pkg.mongodb
@@ -282,6 +284,8 @@ in
         pkgs.bash
         pkgs.curl
         pkgs.coreutils
+        pkgs.procps
+        archCommand
       ];
 
       environment = {
