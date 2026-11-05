@@ -61,7 +61,12 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   passthru = {
     jdk = jdk17_headless;
     mongodb = mongodbPackage;
-    inherit jsvc;
+    # jsvc's wrapper closes over the JRE it is built with, so the default one would
+    # add a second JDK to the closure.
+    jsvc = jsvc.override {
+      jdk = jdk17_headless;
+      jre = jdk17_headless;
+    };
     mainClass = "com.tplink.smb.omada.starter.OmadaLinuxMain";
     # JAVA_OPTS as set by the vendor's control.sh (minus paths the module fills).
     javaOpts = [
