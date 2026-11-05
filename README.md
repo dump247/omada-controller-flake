@@ -273,33 +273,19 @@ everything under `$out/share/omada-controller` and ships **nothing** in
 
 The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 
-- **`OMADA_HOME` is *not* `stateDir`.** The controller derives `OMADA_HOME` from
-  the **canonical filesystem location of its JARs**, then resolves `../properties`
-  and `../data` against it. So the JARs must physically sit under `OMADA_HOME`,
-  and `OMADA_HOME/properties` must be writable (the controller rewrites ports
-  there). The JARs run to hundreds of megabytes, far too much to want in
-  every backup.
-- **So `OMADA_HOME` = `/var/cache/omada-controller/home`** (not backed up),
-  assembled fresh each start by `ExecStartPre`. Its `lib/` is **hardlinked** from
-  the store: a hardlink has no separate canonical target (unlike a symlink,
-  which canonicalizes back to the read-only store and makes the controller look
-  for a writable `omada.properties` in `/nix/store` and fail). Hardlinks share
-  the store's blocks (no extra disk) and the JARs keep the store's root ownership
-  (never `chown`ed, since they share its inodes).
-- **`stateDir` holds the state, plus a few megabytes of vendor assets.**
-  `OMADA_HOME/data` and `OMADA_HOME/properties` are symlinks back into
-  `stateDir`, so the controller writes the database and config straight into the
-  backup target; `logs`/`work` symlink out to `/var/log` and `/var/cache`
-  (systemd `LogsDirectory`/`CacheDirectory`). The integration test asserts
-  nothing lands at the `OMADA_HOME` top level beyond the known entries, guarding
-  against state escaping the backup.
+- **`OMADA_HOME` is the package directory in the store.** The controller derives
+  it from the canonical location of its JARs, so the JARs stay in the store and
+  out of every backup.
+- **Its writable directories are symlinks out of the store.** `data` and
+  `properties` point into `stateDir`, so the database and config land straight in
+  the backup target. `logs` and `work` point at `/var/log` and `/var/cache`. The
+  link targets are built into the package, which is why `stateDir` is read-only.
 - **`data/html`, `data/static` and `data/cluster` are the exception**, and they
   can't be lifted out. They're vendor assets — report images, device icons,
   cluster config templates — that `ExecStartPre` re-copies from the package each
   start so they track the installed release. Moving them elsewhere would mean
   replacing the single `data/` symlink with per-subdirectory ones, and then
-  anything new the controller decides to write under `data/` lands outside the
-  backup with no test able to catch it.
+  anything new the controller decides to write under `data/` would fail.
 
   `html` and `cluster` are deleted before the re-copy, so a downgrade can't
   leave a newer release's files behind. **`static` is overwritten in place
@@ -320,9 +306,10 @@ The subtle part is where `OMADA_HOME` lives, and it drives the backup design:
 ├── data/check-mongo/  .omada-version <- what last ran here; the downgrade guards
 └── properties/                       <- seeded once, then rewritten from the database
 
-/var/cache/omada-controller/home/     <- OMADA_HOME: regenerable, NOT backed up
-├── lib/                              <- the JARs, hardlinked from the store
+$out/share/omada-controller/           <- OMADA_HOME: read-only, NOT backed up
+├── lib/                              <- the JARs
 ├── bin/mongod                        <- symlink the controller expects
+├── defaults/                         <- vendor data/ and properties/, seeds stateDir
 ├── data       -> /var/lib/omada-controller/data          <- writes into the backup
 ├── properties -> /var/lib/omada-controller/properties
 ├── logs       -> /var/log/omada-controller

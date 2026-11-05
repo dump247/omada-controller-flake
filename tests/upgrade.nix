@@ -75,7 +75,7 @@ pkgs.testers.runNixOSTest {
         # ExecStartPre seeds properties only when absent, so after an upgrade the
         # file is the old release's. The controller merges its shipped defaults
         # underneath; a key it needs and can't find is a startup exception.
-        shipped = "${newPackage}/share/omada-controller/properties/omada.properties"
+        shipped = "${newPackage}/share/omada-controller/defaults/properties/omada.properties"
         machine.succeed(
             f"grep -oE '^[^#[:space:]=]+' {shipped} | sort -u > /tmp/shipped",
             f"grep -oE '^[^#[:space:]=]+' {state}/properties/omada.properties | sort -u > /tmp/live",

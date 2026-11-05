@@ -33,41 +33,27 @@ let
   share = "${pkg}/share/omada-controller";
 
   # stateDir holds only the backup-worthy state (data/ + properties/).
-  stateDirName = "omada-controller";
   state = cfg.stateDir;
 
   # Non-backed-up locations for everything regenerable.
-  cacheDir = "/var/cache/omada-controller";
-  logDir = "/var/log/omada-controller";
-  # OMADA_HOME: the assembled runtime tree. Holds the hundreds of megabytes of
-  # jars (hardlinked from the store), so it lives here and NOT in the backup target.
-  homeDir = "${cacheDir}/home";
+  inherit (pkg) cacheDir logDir;
 
   javaOpts = concatStringsSep " " (
     pkg.javaOpts ++ [ "-XX:HeapDumpPath=${logDir}/java_heapdump.hprof" ]
   );
 
-  # Assembles OMADA_HOME before start, seeded from the read-only package. Runs as
-  # root (ExecStartPre '+').
+  # Seeds stateDir from the read-only package before start. Runs as root
+  # (ExecStartPre '+').
   #
   # Backup contract: stateDir is a single, whole-directory backup target — no
-  # exclude list. It holds the real state — the MongoDB database and config under
-  # data/ and properties/ — plus the few megabytes of vendor assets re-copied
-  # below. The big regenerable things live outside it: the jars in ${homeDir}
-  # (hardlinked from the store: no extra disk, not backed up), logs in ${logDir},
-  # and the servlet work dir in ${cacheDir}.
-  #
-  # OMADA_HOME is NOT stateDir: the controller derives its home from the
-  # *canonical* directory of its jars, so the jars must physically live under
-  # OMADA_HOME. To keep those out of the backup, OMADA_HOME is ${homeDir},
-  # and its data/ and properties/ are symlinks back into stateDir (the controller
-  # writes through them) while logs/ and work/ point at ${logDir} / ${cacheDir}.
+  # exclude list. It holds the MongoDB database and config under data/ and
+  # properties/, plus the few megabytes of vendor assets re-copied below. The jars,
+  # logs and servlet work dir live outside it.
   preStart = pkgs.writeShellScript "omada-controller-pre-start" ''
     set -euo pipefail
 
-    share=${escapeShellArg share}
+    defaults=${escapeShellArg "${share}/defaults"}
     state=${escapeShellArg state}
-    home=${escapeShellArg homeDir}
     cache=${escapeShellArg cacheDir}
     logs=${escapeShellArg logDir}
 
@@ -131,16 +117,16 @@ let
     # systemsetting.web_port_setting), so what's here isn't authoritative.
     if [ ! -e "$state/properties/omada.properties" ]; then
       mkdir -p "$state/properties"
-      cp "$share"/properties/* "$state/properties/"
+      cp "$defaults"/properties/* "$state/properties/"
     fi
 
     # Vendor assets: small, refreshed each start to track the version.
     # They sit in the backup target only because data/ is one symlink. Replaced
     # wholesale so a downgrade doesn't leave a newer release's files behind.
     for d in html cluster; do
-      if [ -e "$share/data/$d" ]; then
+      if [ -e "$defaults/data/$d" ]; then
         rm -rf "$state/data/$d"
-        cp -r "$share/data/$d" "$state/data/$d"
+        cp -r "$defaults/data/$d" "$state/data/$d"
       fi
     done
 
@@ -149,27 +135,16 @@ let
     # data/static/theme/img, and it only asks TP-Link for templates newer than
     # the version in its database. The database outlives a wipe, so a deleted
     # icon is never re-fetched — it would be gone until the next release.
-    if [ -e "$share/data/static" ]; then
-      cp -r "$share"/data/static/. "$state/data/static/"
+    if [ -e "$defaults/data/static" ]; then
+      cp -r "$defaults"/data/static/. "$state/data/static/"
     fi
 
     chmod -R u+w "$state/properties" "$state/data"
     chown -R ${cfg.user}:${cfg.group} "$state" "$logs" "$cache/work"
 
-    # --- OMADA_HOME (NOT backed up): jars + symlinks back to the state dirs ---
-    # lib is HARDLINKED from the store so the jars' canonical dir stays inside
-    # OMADA_HOME (a symlink would canonicalise back to the read-only store, and
-    # the controller would then look for a writable omada.properties there and
-    # fail). The jars keep the store's root ownership and are never chowned —
-    # they share its inodes.
-    rm -rf "$home"
-    mkdir -p "$home/lib" "$home/bin"
-    cp -al "$share"/lib/. "$home/lib/" 2>/dev/null || cp -a "$share"/lib/. "$home/lib/"
-    ln -s ${pkg.mongodb}/bin/mongod  "$home/bin/mongod"
-    ln -sfnT "$state/properties" "$home/properties"
-    ln -sfnT "$state/data"       "$home/data"
-    ln -sfnT "$logs"             "$home/logs"
-    ln -sfnT "$cache/work"       "$home/work"
+    # Nothing uses this path, but a host upgrading from an older version of this
+    # flake still has jars there, which would hold their disk space past a GC.
+    rm -rf "$cache/home"
   '';
 
   # Holds the unit in "activating" until the controller answers on the endpoint
@@ -232,7 +207,8 @@ in
 
     stateDir = mkOption {
       type = types.str;
-      default = "/var/lib/${stateDirName}";
+      default = pkg.stateDir;
+      defaultText = lib.literalExpression ''"/var/lib/omada-controller"'';
       readOnly = true;
       description = ''
         The directory to back up. Read-only: relocate it by mounting a subvolume
@@ -312,16 +288,16 @@ in
         User = cfg.user;
         Group = cfg.group;
 
-        StateDirectory = stateDirName;
+        StateDirectory = pkg.dirName;
 
         # Regenerable churn lives here, outside the state dir, so it's not in
         # the backup: /var/log/omada-controller and /var/cache/omada-controller.
-        LogsDirectory = "omada-controller";
-        CacheDirectory = "omada-controller";
+        LogsDirectory = pkg.dirName;
+        CacheDirectory = pkg.dirName;
         # Writable /run/omada-controller for jsvc's pidfile.
         RuntimeDirectory = "omada-controller";
 
-        # '+' → run the assembly step as root so it can chown the tree.
+        # '+' → run the seeding step as root so it can chown the tree.
         ExecStartPre = "+${preStart}";
         ExecStartPost = "${waitReady}";
 
@@ -333,8 +309,8 @@ in
           "-nodetach"
           "-pidfile /run/omada-controller/omada.pid"
           "-home ${pkg.jdk.home}"
-          "-cwd ${homeDir}/lib"
-          "-cp ${homeDir}/lib/*:${homeDir}/properties"
+          "-cwd ${share}/lib"
+          "-cp ${share}/lib/*:${share}/properties"
           "-outfile ${logDir}/startup.log"
           "-errfile ${logDir}/startup.log"
           "-procname omada"

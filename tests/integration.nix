@@ -7,7 +7,7 @@
 
 # End-to-end VM test: boot a NixOS guest with the controller enabled, wait for
 # the service and its embedded MongoDB to come up, and assert the management UI
-# answers on :8043. Also verifies the single-state-dir layout is assembled.
+# answers on :8043. Also verifies the single-state-dir layout.
 #
 # Heavy: pulls the vendor tarball and the MongoDB closure, and Omada's first
 # boot (Mongo init + schema setup) takes a few minutes — hence the large VM and
@@ -65,28 +65,10 @@ pkgs.testers.runNixOSTest {
 
     # --- storage layout / backup contract ---
     # stateDir (the backup target) holds only real state — the jars are NOT in it.
-    machine.succeed("test -d /var/lib/omada-controller/data/db")
+    machine.succeed("test -e /var/lib/omada-controller/data/db/WiredTiger")
     machine.succeed("test ! -L /var/lib/omada-controller/data/db")
     machine.succeed("test -e /var/lib/omada-controller/properties/omada.properties")
     machine.succeed("test ! -e /var/lib/omada-controller/lib")
-
-    # OMADA_HOME lives outside the backup target: it holds the hardlinked jars and
-    # symlinks data/ + properties/ back into stateDir.
-    machine.succeed("ls /var/cache/omada-controller/home/lib/*.jar >/dev/null")
-    machine.succeed("test -L /var/cache/omada-controller/home/bin/mongod")
-    machine.succeed(
-        'test "$(readlink /var/cache/omada-controller/home/data)" = /var/lib/omada-controller/data'
-    )
-    machine.succeed(
-        'test "$(readlink /var/cache/omada-controller/home/properties)" = /var/lib/omada-controller/properties'
-    )
-
-    # Backup-completeness guard: after a full startup the controller must write
-    # nothing at the OMADA_HOME top level beyond these known entries — anything
-    # else would be state living outside (and missing from) the backup.
-    machine.succeed(
-        "test -z \"$(ls /var/cache/omada-controller/home | grep -vxE 'bin|data|lib|logs|properties|work')\""
-    )
 
     # Last, because it restarts the service: device icons the controller
     # downloads into data/static have to survive a restart. Its sync only
@@ -105,5 +87,11 @@ pkgs.testers.runNixOSTest {
 
     # Runs after two starts, so the controller has run ps and arch by now.
     machine.fail("grep 'Cannot run program' /var/log/omada-controller/server.log")
+
+    # OMADA_HOME is in the read-only store, so state aimed anywhere but its symlinks
+    # fails with one of these.
+    machine.fail(
+        "grep -E 'Read-only file system|Permission denied' /var/log/omada-controller/server.log"
+    )
   '';
 }

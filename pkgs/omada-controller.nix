@@ -22,15 +22,24 @@
 # no launcher reaches the system PATH.
 #
 # The vendor's bin/ isn't packaged at all — the unit spells out the invocation
-# control.sh would have made (see javaOpts below) and runs nixpkgs' jsvc, and
-# the module symlinks its own mongod into the OMADA_HOME it assembles.
-# That assembly works because the app is relocatable: it derives OMADA_HOME from
-# the canonical directory of its jars, so pointing it at a writable tree outside
-# the store is enough. The controller launches that mongod itself — there is no
-# separate mongod service.
+# control.sh would have made (see javaOpts below) and runs nixpkgs' jsvc. The
+# controller launches bin/mongod itself — there is no separate mongod service.
+#
+# That directory is OMADA_HOME, which the app derives from the canonical location
+# of its jars. Its data, properties, logs and work are symlinks to the paths in
+# passthru, and they dangle on a host not running the module. The vendor's data
+# and properties sit under defaults/ for the module to seed from.
 #
 # The version/url/hash come from pkgs/sources/; add a release with
 # `just update-omada <tarball-url>`.
+let
+  # The name for systemd's StateDirectory=, LogsDirectory= and CacheDirectory=,
+  # which place it under these fixed roots.
+  dirName = "omada-controller";
+  stateDir = "/var/lib/${dirName}";
+  logDir = "/var/log/${dirName}";
+  cacheDir = "/var/cache/${dirName}";
+in
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "omada-controller";
   version = source.version;
@@ -51,14 +60,27 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
     inner="Omada_Network_Application_v${finalAttrs.version}_linux_x64"
     dst="$out/share/omada-controller"
-    mkdir -p "$dst"
-    cp -r "$inner"/lib "$inner"/properties "$inner"/data "$dst"/
+    mkdir -p "$dst/bin" "$dst/defaults"
+    cp -r "$inner"/lib "$dst"/
+    cp -r "$inner"/properties "$inner"/data "$dst"/defaults/
+    ln -s ${mongodbPackage}/bin/mongod "$dst/bin/mongod"
+    ln -s ${stateDir}/data "$dst/data"
+    ln -s ${stateDir}/properties "$dst/properties"
+    ln -s ${logDir} "$dst/logs"
+    ln -s ${cacheDir}/work "$dst/work"
 
     runHook postInstall
   '';
 
   # Expose the runtime deps so the module doesn't have to re-thread them.
   passthru = {
+    # The symlinks above point at these, and the module creates them from dirName.
+    inherit
+      dirName
+      stateDir
+      logDir
+      cacheDir
+      ;
     jdk = jdk17_headless;
     mongodb = mongodbPackage;
     # jsvc's wrapper closes over the JRE it is built with, so the default one would
