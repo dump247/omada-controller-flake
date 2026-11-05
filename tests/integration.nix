@@ -46,17 +46,16 @@ pkgs.testers.runNixOSTest {
 
     # Surface Omada's own logs early for diagnosis (server.log is the
     # controller's log4j output; startup.log is jsvc's; mongod.log if it started).
-    machine.sleep(60)
     print(machine.execute("systemctl status omada-controller --no-pager -l || true")[1])
     print(machine.execute("ls -la /var/log/omada-controller/ || true")[1])
     print(machine.execute(
         'for f in /var/log/omada-controller/*.log; do echo "### $f"; tail -n 120 "$f"; done 2>&1 || true'
     )[1])
 
-    # Omada initialises MongoDB and the web server on first boot; give it time.
-    machine.wait_until_succeeds(
-        "curl -fsk https://localhost:8043 -o /dev/null", timeout=600
-    )
+    # The unit is active only once the controller answers, so this has no retry.
+    machine.succeed("curl -fs -I http://localhost:8088/actuator/linux/check -o /dev/null")
+    machine.wait_until_succeeds("curl -fsk https://localhost:8043 -o /dev/null", timeout=60)
+
     # Every TCP port the README's firewall section lists.
     for port in (8043, 8044, 8088, 8843, 29811, 29812, 29813, 29814, 29815, 29816, 29817):
         machine.wait_for_open_port(port, timeout=60)

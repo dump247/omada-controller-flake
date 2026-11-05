@@ -172,6 +172,20 @@ let
     ln -sfnT "$cache/work"       "$home/work"
   '';
 
+  # Holds the unit in "activating" until the controller answers on the endpoint
+  # control.sh polls, with the statuses control.sh counts as started. The port is
+  # re-read on each pass because the controller rewrites it during startup.
+  waitReady = pkgs.writeShellScript "omada-controller-wait-ready" ''
+    properties=${escapeShellArg "${state}/properties/omada.properties"}
+    while :; do
+      port="$(sed -n 's/^manage\.http\.port=\([0-9]\+\).*/\1/p' "$properties")"
+      code="$(curl -s -I -m 10 -o /dev/null -w '%{http_code}' \
+        "http://localhost:''${port:-8088}/actuator/linux/check")"
+      case "$code" in 200 | 503) exit 0 ;; esac
+      sleep 1
+    done
+  '';
+
   # coreutils doesn't install this command.
   archCommand = pkgs.writeShellScriptBin "arch" "exec ${pkgs.coreutils}/bin/uname -m";
 in
@@ -309,6 +323,7 @@ in
 
         # '+' → run the assembly step as root so it can chown the tree.
         ExecStartPre = "+${preStart}";
+        ExecStartPost = "${waitReady}";
 
         # Run jsvc in the foreground (-nodetach) so systemd owns the process
         # directly. Classpath uses Java's own `lib/*` wildcard (expanded by
@@ -350,8 +365,9 @@ in
 
         Restart = "on-failure";
         RestartSec = 10;
-        # First boot initialises MongoDB and migrates schemas — can be slow.
-        TimeoutStartSec = 900;
+        # Bounds the wait in ExecStartPost, and so first-boot setup and schema
+        # migration. Matches control.sh's 40-minute limit.
+        TimeoutStartSec = 2400;
         TimeoutStopSec = 120;
         LimitNOFILE = 65535;
         # Reap the mongod child on stop.
